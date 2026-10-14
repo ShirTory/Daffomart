@@ -14,6 +14,17 @@ export const metadata: Metadata = {
 };
 export const viewport: Viewport = { themeColor: "#1E3A8A", width: "device-width", initialScale: 1 };
 
+// Tells Google the site's name (and the alternate name people may type) so search results show "DaffoMart" for this address.
+const siteSchema = [
+  { "@context": "https://schema.org", "@type": "WebSite", name: "DaffoMart", alternateName: ["daffomartshop", "DaffoMart Shop", "daffomart"], url: `${SITE_URL}/` },
+  { "@context": "https://schema.org", "@type": "Organization", name: "DaffoMart", url: `${SITE_URL}/`, logo: `${SITE_URL}/logo.png` },
+];
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (<html lang="en"><body className="font-sans">{children}</body></html>);
+  return (
+    <html lang="en">
+      <head><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteSchema) }} /></head>
+      <body className="font-sans">{children}</body>
+    </html>
+  );
 }
