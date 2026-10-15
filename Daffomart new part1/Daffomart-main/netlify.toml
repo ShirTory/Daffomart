@@ -1,9 +1,0 @@
-# Netlify detects Next.js automatically; this file only pins safe defaults.
-[build]
-  command = "npm run build"
-
-[build.environment]
-  NODE_VERSION = "22"
-  # The Google Maps key is public by design (it is inside the browser JavaScript, protected by HTTP-referrer restriction),
-  # so tell Netlify's secret scanner not to fail the build because it appears in the build output.
-  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,NEXT_PUBLIC_SITE_URL"
