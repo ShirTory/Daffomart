@@ -1,4 +1,3 @@
-import { getAdmin } from "@/server/auth";
-import { ApiError, handle, ok } from "@/server/http";
+import { resource } from "@/server/resources";
 export const dynamic = "force-dynamic";
-export const GET = handle(async () => { const a = await getAdmin(); if (!a) throw new ApiError(401, "Not signed in"); return ok(a); });
+export const { GET, POST } = resource.banners.c;

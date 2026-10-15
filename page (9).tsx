@@ -1,56 +1,61 @@
 "use client";
-import { useEffect, useMemo } from "react";
-import { Empty, ErrorBox, PageHeader, PageLoader, StatusBadge, useList } from "@/components/admin/ui";
-import LiveMap, { type Pin } from "@/components/maps/LiveMap";
-import { hasPin } from "@/lib/maps";
-import { statusLabel } from "@/lib/format";
-import { riderApproved } from "@/lib/rider";
-import type { Order, Rider } from "@/lib/types";
+import { useEffect, useState } from "react";
+import { api, ApiClientError } from "@/lib/api";
+import { ErrorBox, Field, Icon, PageHeader, PageLoader, Spinner, StatusBadge, useList, useToast } from "@/components/admin/ui";
+import type { StoreSettings } from "@/lib/types";
 
-const LIVE = new Set(["assigned", "picked_up", "on_the_way"]);
-const age = (iso?: string) => (iso ? Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000)) : null);
-const ago = (s: number) => (s < 15 ? "just now" : s < 90 ? `${s}s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : "a while ago");
+const KEYS = ["storeName", "tagline", "announcement", "address", "phone", "whatsapp", "email", "facebook", "hours", "mapUrl", "minOrder"] as const;
+type K = (typeof KEYS)[number];
+interface Sys { storage: string; persistent: boolean; devCredentials: boolean; firebase: { configured: boolean; projectId: string; bucket: string }; test?: { firestore: string; storage: string } }
 
-export default function LiveMapPage() {
-  const riders = useList<Rider[]>("/api/riders"); const orders = useList<Order[]>("/api/orders");
-  useEffect(() => { const t = setInterval(() => { riders.reload(); orders.reload(); }, 10_000); return () => clearInterval(t); }, [riders.reload, orders.reload]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const { pins, rows, jobs } = useMemo(() => {
-    const act = (orders.data ?? []).filter((o) => LIVE.has(o.status));
-    const rows = (riders.data ?? []).filter((r) => r.active && riderApproved(r)).map((r) => {
-      const a = age(r.locAt); const fresh = a !== null && a < 900 && typeof r.lat === "number";
-      return { r, a, fresh, jobs: act.filter((o) => o.riderId === r.id) };
-    }).sort((x, y) => Number(y.fresh) - Number(x.fresh) || y.jobs.length - x.jobs.length);
-    const pins: Pin[] = [
-      ...rows.filter((x) => x.fresh).map((x) => ({ id: `r${x.r.id}`, kind: "rider" as const, lat: x.r.lat!, lng: x.r.lng!, label: `${x.r.name} (${x.jobs.length} active)` })),
-      ...act.filter((o) => hasPin(o)).map((o) => ({ id: `o${o.id}`, kind: "home" as const, lat: o.lat!, lng: o.lng!, label: `${o.orderNo} · ${o.name}` })),
-    ];
-    return { pins, rows, jobs: act };
-  }, [riders.data, orders.data]);
-
-  if (riders.loading || orders.loading) return <PageLoader />;
-  if (riders.error || orders.error) return <ErrorBox msg={riders.error || orders.error} retry={() => { riders.reload(); orders.reload(); }} />;
+export default function SettingsPage() {
+  const toast = useToast(); const { data, loading, error, reload } = useList<StoreSettings>("/api/settings"); const sys = useList<Sys>("/api/admin/system");
+  const [f, setF] = useState<Record<K, string> | null>(null); const [busy, setBusy] = useState(false); const [errs, setErrs] = useState<Record<string, string>>({});
+  const [test, setTest] = useState<Sys["test"] | null>(null); const [testing, setTesting] = useState(false);
+  useEffect(() => { if (data) setF(Object.fromEntries(KEYS.map((k) => [k, String(data[k] ?? "")])) as Record<K, string>); }, [data]);
+  if (loading) return <PageLoader />; if (error || !f) return <ErrorBox msg={error || "Failed to load"} retry={reload} />;
+  const set = (k: K) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault(); setBusy(true); setErrs({});
+    try { await api("/api/settings", { method: "PUT", body: f }); toast("Settings saved"); } catch (x: any) { if (x instanceof ApiClientError) setErrs(x.fields); toast(x.message, "err"); } finally { setBusy(false); }
+  };
+  const runTest = async () => { setTesting(true); try { setTest((await api<Sys>("/api/admin/system?test=1")).test ?? null); } catch (e: any) { toast(e.message, "err"); } finally { setTesting(false); } };
+  const fb = sys.data?.firebase;
   return (
     <>
-      <PageHeader title="Live map" subtitle="Riders who are sharing their location, and the customers they are delivering to · refreshes every 10 seconds" />
-      <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
-        <div className="card p-3">
-          {pins.length ? <LiveMap pins={pins} height={540} /> : <Empty icon="rider" title="Nothing to show yet" hint="Riders appear here when they switch on “Share live location” in the rider app. Customers appear when an order with a GPS pin is assigned." />}
-          <p className="mt-2 px-1 text-xs text-gray-500">🛵 rider · 🏠 customer drop-off (customers who shared their location at checkout)</p>
+      <form onSubmit={save}>
+        <PageHeader title="Settings & contact" subtitle="Store details, contact information and order rules"><button className="btn-primary" disabled={busy}>{busy && <Spinner className="h-4 w-4" />}Save changes</button></PageHeader>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <section className="card space-y-4 p-5"><h2 className="font-bold">Store information</h2>
+            <Field label="Store name" error={errs.storeName}><input className="input" value={f.storeName} onChange={set("storeName")} /></Field>
+            <Field label="Tagline"><input className="input" value={f.tagline} onChange={set("tagline")} /></Field>
+            <Field label="Announcement bar" hint="Shown at the very top of the website. Leave empty to hide."><input className="input" value={f.announcement} onChange={set("announcement")} /></Field>
+            <Field label="Minimum order amount (৳)" hint="0 = no minimum" error={errs.minOrder}><input className="input" type="number" min="0" value={f.minOrder} onChange={set("minOrder")} /></Field>
+          </section>
+          <section className="card space-y-4 p-5"><h2 className="font-bold">Contact information</h2>
+            <p className="-mt-2 text-xs text-gray-500">Shown in the website header/footer and on the Contact page.</p>
+            <Field label="Address"><input className="input" value={f.address} onChange={set("address")} /></Field>
+            <div className="grid gap-4 sm:grid-cols-2"><Field label="Phone"><input className="input" value={f.phone} onChange={set("phone")} placeholder="01XXXXXXXXX" /></Field><Field label="WhatsApp number" hint="With country code, e.g. 8801XXXXXXXXX"><input className="input" value={f.whatsapp} onChange={set("whatsapp")} /></Field></div>
+            <Field label="Email"><input className="input" value={f.email} onChange={set("email")} /></Field>
+            <Field label="Opening hours"><input className="input" value={f.hours} onChange={set("hours")} placeholder="Every day, 8 AM – 10 PM" /></Field>
+            <div className="grid gap-4 sm:grid-cols-2"><Field label="Facebook page URL"><input className="input" value={f.facebook} onChange={set("facebook")} placeholder="https://facebook.com/…" /></Field><Field label="Google Maps link"><input className="input" value={f.mapUrl} onChange={set("mapUrl")} placeholder="https://maps.google.com/…" /></Field></div>
+          </section>
         </div>
-        <div className="card divide-y">
-          <p className="p-4 text-sm font-bold">Riders ({rows.length})</p>
-          {!rows.length && <p className="p-4 text-sm text-gray-500">No active riders. Add them in Riders.</p>}
-          {rows.map(({ r, a, fresh, jobs: j }) => (
-            <div key={r.id} className="space-y-1 p-4 text-sm">
-              <div className="flex items-center justify-between gap-2"><b className="truncate">{r.name}</b><StatusBadge status={fresh ? "active" : "inactive"} label={fresh ? "Live" : a !== null ? "Last seen " + ago(a) : "Offline"} /></div>
-              <a href={`tel:${r.phone}`} className="text-xs text-primary">{r.phone}</a>
-              {j.length ? j.map((o) => <p key={o.id} className="text-xs text-gray-600">{o.orderNo} · {o.name} · <span className="font-medium">{statusLabel(o.status)}</span></p>) : <p className="text-xs text-gray-400">No active delivery</p>}
-              {j.length > 0 && !fresh && <p className="text-xs font-medium text-amber-700">⚠ Delivering but not sharing location</p>}
-            </div>))}
-          {jobs.length > 0 && <p className="p-4 text-xs text-gray-500">{jobs.length} delivery(ies) in progress · {jobs.filter((o) => !hasPin(o)).length} without a customer GPS pin</p>}
+      </form>
+
+      <section className="card mt-6 space-y-3 p-5"><h2 className="font-bold">Delivery charges</h2><p className="text-sm text-gray-600">Delivery areas and charges are managed on the <a href="/admin/delivery" className="font-semibold text-primary underline">Delivery Areas</a> page.</p></section>
+
+      <section className="card mt-6 space-y-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">Database &amp; storage (Firebase)</h2><p className="text-xs text-gray-500">Permanent storage for products, orders and uploaded images.</p></div>
+          <button className="btn-outline" onClick={runTest} disabled={testing}>{testing ? <Spinner className="h-4 w-4" /> : <Icon name="check" className="h-4 w-4" />}Test connection</button></div>
+        <div className="grid gap-3 text-sm sm:grid-cols-3">
+          <div className="rounded-lg bg-gray-50 p-3"><p className="text-xs text-gray-500">Mode</p><StatusBadge status={sys.data?.persistent ? "active" : "low"} label={sys.data?.persistent ? "Firebase (permanent)" : "Local / temporary"} /></div>
+          <div className="rounded-lg bg-gray-50 p-3"><p className="text-xs text-gray-500">Project</p><p className="font-medium">{fb?.projectId || "not set"}</p></div>
+          <div className="rounded-lg bg-gray-50 p-3"><p className="text-xs text-gray-500">Storage bucket</p><p className="truncate font-medium">{fb?.bucket || "not set"}</p></div>
         </div>
-      </div>
+        {test && <div className="grid gap-3 text-sm sm:grid-cols-2">{([["Firestore database", test.firestore], ["Storage (images)", test.storage]] as const).map(([l, v]) => <div key={l} className={`rounded-lg p-3 ${v === "OK" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}><p className="text-xs font-semibold uppercase">{l}</p><p className="mt-0.5 break-words">{v === "OK" ? "✓ Working" : v}</p></div>)}</div>}
+        {!fb?.configured && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Firebase is <b>not connected</b> yet — data is saved only on this server and can be lost. Follow <code>DEPLOYMENT.md</code> to add the Firebase variables.</p>}
+      </section>
     </>
   );
 }

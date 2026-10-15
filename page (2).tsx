@@ -1,34 +1,43 @@
-import type { Metadata } from "next";
 import Link from "next/link";
-import { getSettings, getZones } from "@/server/queries";
-import { taka } from "@/lib/format";
-import { mapsEmbed } from "@/lib/maps";
-export const metadata: Metadata = { title: "Contact & Delivery" };
+import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+import AddToCart from "@/components/store/AddToCart";
+import Gallery from "@/components/store/Gallery";
+import ProductCard from "@/components/store/ProductCard";
+import { getActiveProducts, getCategories } from "@/server/queries";
+import { discountPct, taka } from "@/lib/format";
 export const revalidate = 60; // served from cache, refreshed when the admin saves (and at most every 60 s)
 
-export default async function ContactPage() {
-  const [s, zones] = await Promise.all([getSettings(), getZones()]);
-  const wa = s.whatsapp.replace(/\D/g, "");
-  const rows: [string, string, React.ReactNode][] = [
-    ["📍", "Address", s.address], ["📞", "Phone", s.phone && <a className="text-primary hover:underline" href={`tel:${s.phone}`}>{s.phone}</a>],
-    ["💬", "WhatsApp", wa && <a className="text-primary hover:underline" href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer">{s.whatsapp}</a>],
-    ["✉️", "Email", s.email && <a className="text-primary hover:underline" href={`mailto:${s.email}`}>{s.email}</a>],
-    ["🕒", "Opening hours", s.hours], ["👍", "Facebook", s.facebook && <a className="text-primary hover:underline" href={s.facebook} target="_blank" rel="noopener noreferrer">Visit our page</a>],
-  ];
+const find = async (slug: string) => (await getActiveProducts()).find((p) => p.slug === slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const p = await find((await params).slug);
+  return { title: p?.name ?? "Product", description: p?.description, openGraph: p?.image ? { images: [p.image] } : undefined };
+}
+
+export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
+  const [all, categories] = [await getActiveProducts(), await getCategories()];
+  const { slug } = await params;
+  const p = all.find((x) => x.slug === slug); if (!p) notFound();
+  const related = all.filter((x) => x.categoryId === p.categoryId && x.id !== p.id).slice(0, 5);
+  const cat = categories.find((c) => c.id === p.categoryId); const off = discountPct(p.price, p.oldPrice);
+  const images = p.images?.length ? p.images : p.image ? [p.image] : [];
   return (
-    <div className="mx-auto max-w-4xl">
-      <h1 className="text-2xl font-bold tracking-tight">Contact &amp; delivery</h1><p className="mt-1 text-sm text-gray-500">We are happy to help with orders, medicine and delivery questions.</p>
-      <div className="mt-5 grid gap-6 md:grid-cols-2">
-        <section className="space-y-4 rounded-2xl border bg-white p-5 shadow-card"><h2 className="font-bold">{s.storeName}</h2>
-          {rows.filter(([, , v]) => v).map(([i, l, v]) => <div key={l} className="flex gap-3 text-sm"><span className="text-lg">{i}</span><div><p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{l}</p><p>{v}</p></div></div>)}
-          {s.address && <iframe title="Store location" src={mapsEmbed({ address: s.address })} className="h-56 w-full rounded-xl border-0" loading="lazy" />}
-          {s.mapUrl && <a href={s.mapUrl} target="_blank" rel="noopener noreferrer" className="btn-outline">View on map</a>}
-        </section>
-        <section className="rounded-2xl border bg-white p-5 shadow-card"><h2 className="font-bold">Delivery areas &amp; charges</h2>
-          <ul className="mt-3 divide-y text-sm">{zones.map((z) => <li key={z.id} className="flex items-center justify-between gap-3 py-3"><div><p className="font-semibold">{z.name}</p><p className="text-xs text-gray-500">{[z.eta, z.freeOver > 0 ? `Free over ${taka(z.freeOver)}` : ""].filter(Boolean).join(" · ")}</p></div><span className="font-bold text-primary">{z.charge === 0 ? "Free" : taka(z.charge)}</span></li>)}</ul>
-          {s.minOrder > 0 && <p className="mt-2 text-xs text-gray-500">Minimum order: {taka(s.minOrder)}</p>}
-          <Link href="/products" className="btn-primary mt-4">Start shopping</Link></section>
+    <>
+      <nav className="mb-4 text-sm text-gray-500"><Link href="/" className="hover:text-primary">Home</Link> / <Link href="/products" className="hover:text-primary">Products</Link>{cat && <> / <Link href={`/products?cat=${cat.id}`} className="hover:text-primary">{cat.name}</Link></>}</nav>
+      <div className="grid gap-8 rounded-2xl border bg-white p-5 shadow-card md:grid-cols-2 md:p-8">
+        <Gallery images={images} emoji={p.emoji} name={p.name} />
+        <div className="space-y-4">
+          {cat && <p className="text-sm font-medium text-primary">{cat.name}</p>}
+          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">{p.name}</h1>
+          <p className="text-sm text-gray-500">{p.rating > 0 && <>⭐ {p.rating.toFixed(1)} · </>}{p.sold > 0 && <>{p.sold}+ sold · </>}{p.unit}</p>
+          <div className="flex items-baseline gap-3"><span className="text-4xl font-extrabold text-primary">{taka(p.price)}</span>{p.oldPrice ? <span className="text-lg text-gray-400 line-through">{taka(p.oldPrice)}</span> : null}{off > 0 && <span className="rounded-full bg-accent px-2.5 py-0.5 text-sm font-bold text-white">Save {off}%</span>}</div>
+          <p className={`text-sm font-medium ${p.stock > 0 ? "text-emerald-600" : "text-red-600"}`}>{p.stock <= 0 ? "Out of stock" : p.stock <= 10 ? `Only ${p.stock} left in stock` : "In stock"}</p>
+          {p.description && <p className="whitespace-pre-line text-sm leading-relaxed text-gray-600">{p.description}</p>}
+          <div className="max-w-sm pt-2"><AddToCart product={p} withQty /></div>
+          <ul className="grid gap-2 border-t pt-4 text-sm text-gray-600 sm:grid-cols-2"><li>🚚 Fast home delivery</li><li>💵 Cash on delivery</li><li>🌿 Quality checked</li><li>↩️ Easy support</li></ul>
+        </div>
       </div>
-    </div>
+      {related.length > 0 && <section className="mt-10"><h2 className="mb-4 text-xl font-bold">You may also like</h2><div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 xl:grid-cols-5">{related.map((r) => <ProductCard key={r.id} p={r} />)}</div></section>}
+    </>
   );
 }

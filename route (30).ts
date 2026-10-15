@@ -1,3 +1,3 @@
-import { clearSessionCookie } from "@/server/auth";
-import { handle, ok } from "@/server/http";
-export const POST = handle(async () => { await clearSessionCookie(); return ok({}); });
+import { resource } from "@/server/resources";
+export const dynamic = "force-dynamic";
+export const { GET, PUT, DELETE } = resource.zones.i;

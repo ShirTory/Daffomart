@@ -4,7 +4,6 @@ import { discountPct, taka } from "@/lib/format";
 import type { Product } from "@/lib/types";
 import AddToCart from "./AddToCart";
 import { RxBadge } from "./MedicineBadge";
-import WishlistButton from "./WishlistButton";
 
 /** Photos we host (database/local uploads and Firebase Storage) go through the Next.js image optimizer, which serves a small WebP sized for the card
  *  instead of the full 1200 px upload. Any other address (never uploaded through the admin) falls back to a plain <img>. */
@@ -24,14 +23,9 @@ export default function ProductCard({ p }: { p: Product }) {
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-card transition hover:-translate-y-0.5 hover:shadow-pop">
       {off > 0 && <span className="absolute left-2.5 top-2.5 z-10 rounded-full bg-accent px-2.5 py-0.5 text-xs font-bold text-white">-{off}%</span>}
-      <WishlistButton
-        item={{ id: p.id, slug: p.slug, name: p.name, price: p.price, unit: p.unit, emoji: p.emoji, image: p.image, oldPrice: p.oldPrice }}
-        className="absolute right-2.5 top-2.5 z-10"
-      />
       <Link href={`/products/${p.slug}`} className="relative flex aspect-square items-center justify-center overflow-hidden bg-primary-soft">
         <ProductImage p={p} className="transition duration-300 group-hover:scale-105" />
         {out && <span className="absolute inset-0 flex items-center justify-center bg-white/70 text-sm font-bold text-gray-700">Out of stock</span>}
-        {!out && p.stock <= 5 && <span className="absolute bottom-2 left-2 rounded bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-white">Only {p.stock} left</span>}
       </Link>
       <div className="flex flex-1 flex-col p-3">
         <Link href={`/products/${p.slug}`} className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug text-gray-900 hover:text-primary">{p.name}</Link>

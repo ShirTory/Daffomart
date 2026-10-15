@@ -1,11 +1,15 @@
-import { checkCredentials, createSessionCookie } from "@/server/auth";
-import { ApiError, clientIp, handle, ok, rateLimit, readJson } from "@/server/http";
-import { loginSchema } from "@/lib/validators";
+import { db } from "@/server/db";
+import { requireAdmin } from "@/server/auth";
+import { handle, ok, readJson } from "@/server/http";
+import { getSettings } from "@/server/services";
+import { settingsPatchSchema } from "@/lib/validators";
 export const dynamic = "force-dynamic";
-export const POST = handle(async (req) => {
-  rateLimit(`login:${clientIp(req)}`, 8, 10 * 60_000);
-  const { email, password } = loginSchema.parse(await readJson(req));
-  if (!checkCredentials(email, password)) throw new ApiError(401, "Incorrect email or password");
-  await createSessionCookie(email);
-  return ok({ email });
+export const GET = handle(async () => ok(await getSettings()));
+/** Partial update: send only the fields you changed. */
+export const PUT = handle(async (req) => {
+  await requireAdmin();
+  const data = settingsPatchSchema.parse(await readJson(req));
+  const cur = (await db.get<Record<string, unknown> & { id: string }>("settings", "store")) ?? { id: "store" };
+  await db.put("settings", { ...cur, ...data, id: "store" });
+  return ok(await getSettings());
 });

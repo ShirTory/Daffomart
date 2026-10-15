@@ -1,50 +1,39 @@
-"use client";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useCart } from "@/lib/store";
-import { useCartSync, useCoupon } from "@/lib/hooks";
-import { taka } from "@/lib/format";
+import { notFound } from "next/navigation";
+import ProductCard from "@/components/store/ProductCard";
+import { getActiveProducts, getCategories, getSettings } from "@/server/queries";
+export const metadata: Metadata = { title: "Medicine & Healthcare" };
 
-export default function CartPage() {
-  const { items, setQty, remove } = useCart();
-  const [mounted, setMounted] = useState(false); const [input, setInput] = useState("");
-  useEffect(() => setMounted(true), []);
-  useCartSync();
-  const subtotal = items.reduce((n, i) => n + i.price * i.qty, 0);
-  const c = useCoupon(subtotal);
-  if (!mounted) return <div className="h-40 animate-pulse rounded-2xl bg-gray-200" />;
-
-  if (!items.length) return (
-    <div className="rounded-2xl border bg-white p-12 text-center shadow-card"><p className="text-5xl">🛒</p><h1 className="mt-3 text-xl font-bold">Your cart is empty</h1><p className="mt-1 text-sm text-gray-500">Looks like you haven&apos;t added anything yet.</p><Link href="/products" className="btn-primary mt-5">Start shopping</Link></div>
-  );
+type SP = { q?: string; cat?: string; rx?: string; sort?: string };
+export default async function MedicinePage({ searchParams }: { searchParams: Promise<SP> }) {
+  const { q = "", cat = "", rx = "", sort = "" } = await searchParams;
+  const [all, categories, s] = await Promise.all([getActiveProducts(), getCategories(), getSettings()]);
+  if (!s.showMedicine) notFound();
+  const medCats = categories.filter((c) => c.kind === "medicine"); const ids = new Set(medCats.map((c) => c.id));
+  const needle = q.toLowerCase().trim();
+  let list = all.filter((p) => ids.has(p.categoryId) && (!cat || p.categoryId === cat) && (!rx || (rx === "1" ? p.prescriptionRequired : !p.prescriptionRequired))
+    && (!needle || `${p.name} ${p.genericName ?? ""} ${p.manufacturer ?? ""}`.toLowerCase().includes(needle)));
+  if (sort === "price_asc") list.sort((a, b) => a.price - b.price); else if (sort === "price_desc") list.sort((a, b) => b.price - a.price); else list.sort((a, b) => a.name.localeCompare(b.name));
+  const link = (o: Record<string, string>) => { const p = new URLSearchParams(Object.entries({ q, cat, rx, sort, ...o }).filter(([, v]) => v) as [string, string][]); const t = p.toString(); return `/medicine${t ? `?${t}` : ""}`; };
+  const chip = (on: boolean) => `rounded-full px-3.5 py-1.5 text-sm font-semibold transition ${on ? "bg-emerald-600 text-white" : "bg-white text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50"}`;
   return (
     <div>
-      <h1 className="mb-5 text-2xl font-bold tracking-tight">Shopping cart <span className="text-base font-normal text-gray-500">({items.length} item{items.length > 1 ? "s" : ""})</span></h1>
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-        <div className="space-y-3">
-          {items.map((i) => (
-            <div key={i.id} className="flex items-center gap-3 rounded-2xl border bg-white p-3 shadow-card sm:gap-4">
-              <Link href={`/products/${i.slug}`} className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary-soft text-4xl">{i.image ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={i.image} alt={i.name} className="h-full w-full object-cover" /> : i.emoji}</Link>
-              <div className="min-w-0 flex-1"><Link href={`/products/${i.slug}`} className="line-clamp-2 font-semibold hover:text-primary">{i.name}</Link><p className="text-xs text-gray-500">{i.unit} · {taka(i.price)}</p>
-                <div className="mt-2 flex items-center gap-3"><div className="flex items-center rounded-lg border"><button className="px-2.5 py-1 hover:bg-gray-50" onClick={() => setQty(i.id, i.qty - 1)} aria-label="Decrease">−</button><span className="w-7 text-center text-sm font-semibold">{i.qty}</span><button className="px-2.5 py-1 hover:bg-gray-50" onClick={() => setQty(i.id, i.qty + 1)} aria-label="Increase">+</button></div>
-                  <button onClick={() => remove(i.id)} className="text-xs font-medium text-red-600 hover:underline">Remove</button></div></div>
-              <p className="font-bold">{taka(i.price * i.qty)}</p>
-            </div>))}
-        </div>
-        <aside className="h-fit space-y-4 rounded-2xl border bg-white p-5 shadow-card lg:sticky lg:top-40">
-          <h2 className="font-bold">Order summary</h2>
-          {c.code ? (
-            <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800"><span>🎟️ <b>{c.code}</b> applied</span><button onClick={c.remove} className="text-xs font-semibold underline">Remove</button></div>
-          ) : (
-            <form onSubmit={(e) => { e.preventDefault(); if (input.trim()) c.apply(input.trim()); }} className="flex gap-2"><input className="input uppercase" placeholder="Coupon code" value={input} onChange={(e) => setInput(e.target.value)} /><button className="btn-outline" disabled={c.busy}>Apply</button></form>)}
-          {c.error && <p className="text-xs text-red-600">{c.error}</p>}
-          <div className="space-y-2 text-sm"><div className="flex justify-between"><span className="text-gray-600">Subtotal</span><span>{taka(subtotal)}</span></div>
-            {c.discount > 0 && <div className="flex justify-between text-emerald-700"><span>Discount</span><span>−{taka(c.discount)}</span></div>}
-            <p className="text-xs text-gray-500">Delivery charge is calculated at checkout.</p></div>
-          <Link href="/checkout" className="btn-accent w-full py-3">Proceed to checkout</Link>
-          <Link href="/products" className="block text-center text-sm text-gray-500 hover:text-primary">← Continue shopping</Link>
-        </aside>
+      <section className="rounded-3xl bg-gradient-to-br from-emerald-700 to-emerald-500 p-6 text-white shadow-card sm:p-9">
+        <p className="text-sm font-semibold text-emerald-100">💊 {s.storeName} Pharmacy</p>
+        <h1 className="mt-1 text-2xl font-extrabold sm:text-4xl">{s.medicineTitle}</h1>
+        {s.medicineSubtitle && <p className="mt-2 max-w-2xl text-emerald-50/90">{s.medicineSubtitle}</p>}
+        <form action="/medicine" className="mt-5 flex max-w-xl gap-2"><input name="q" defaultValue={q} placeholder="Search medicine, generic name or company…" className="w-full rounded-full border-0 px-5 py-3 text-sm text-gray-900 outline-none ring-2 ring-transparent focus:ring-emerald-200" /><button className="btn bg-accent px-6 text-white hover:bg-accent-dark">Search</button></form>
+      </section>
+      {s.medicineNotice && <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900 ring-1 ring-emerald-100">ℹ️ {s.medicineNotice}</p>}
+      <div className="mt-5 flex flex-wrap items-center gap-2">
+        <Link href={link({ cat: "" })} className={chip(!cat)}>All</Link>{medCats.map((c) => <Link key={c.id} href={link({ cat: c.id })} className={chip(cat === c.id)}>{c.emoji} {c.name}</Link>)}
+        <span className="mx-1 hidden h-6 w-px bg-gray-200 sm:block" />
+        <Link href={link({ rx: rx === "0" ? "" : "0" })} className={chip(rx === "0")}>No prescription needed</Link><Link href={link({ rx: rx === "1" ? "" : "1" })} className={chip(rx === "1")}>Rx only</Link>
       </div>
+      <p className="mt-4 text-sm text-gray-500">{list.length} product{list.length === 1 ? "" : "s"}</p>
+      {list.length === 0 ? <div className="mt-3 rounded-2xl border bg-white p-12 text-center"><p className="text-4xl">💊</p><p className="mt-2 font-semibold">No medicine found</p><p className="text-sm text-gray-500">Try a different name or clear the filters.</p><Link href="/medicine" className="btn-primary mt-4">Clear filters</Link></div> :
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-5">{list.map((p) => <ProductCard key={p.id} p={p} />)}</div>}
     </div>
   );
 }

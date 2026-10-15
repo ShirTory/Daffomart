@@ -1,16 +1,27 @@
-   import { handle, ok } from "@/server/http";
-   export const dynamic = "force-dynamic";
+import { db } from "@/server/db";
+import { requireAdmin } from "@/server/auth";
+import { ApiError, handle, ok, readJson } from "@/server/http";
+import { assignRider, setOrderStatus, setPaymentStatus } from "@/server/services";
+import { orderPatchSchema } from "@/lib/validators";
+import type { Order } from "@/lib/types";
+export const dynamic = "force-dynamic";
 
-   const has = (k: string) => Boolean(process.env[k]?.trim());
-   export const GET = handle(async () => ok({
-     ADMIN_EMAIL: has("ADMIN_EMAIL"),
-     ADMIN_PASSWORD: has("ADMIN_PASSWORD"),
-     AUTH_SECRET: has("AUTH_SECRET"),
-     AUTH_SECRET_long_enough: (process.env.AUTH_SECRET ?? "").length >= 32,
-     FIREBASE_PROJECT_ID: has("FIREBASE_PROJECT_ID"),
-     FIREBASE_CLIENT_EMAIL: has("FIREBASE_CLIENT_EMAIL"),
-     FIREBASE_PRIVATE_KEY: has("FIREBASE_PRIVATE_KEY"),
-     FIREBASE_PRIVATE_KEY_looks_valid: (process.env.FIREBASE_PRIVATE_KEY ?? "").includes("BEGIN PRIVATE KEY"),
-     NEXT_PUBLIC_SITE_URL: has("NEXT_PUBLIC_SITE_URL"),
-     host: process.env.NETLIFY ? "netlify" : process.env.VERCEL ? "vercel" : "other",
-   }));
+export const GET = handle(async (_r, ctx) => {
+  await requireAdmin(); const o = await db.get<Order>("orders", (await ctx.params).id);
+  if (!o) throw new ApiError(404, "Order not found"); return ok(o);
+});
+/** PATCH {status?, riderId?}: riderId "" removes the rider. */
+export const PATCH = handle(async (req, ctx) => {
+  await requireAdmin(); const id = (await ctx.params).id;
+  const { status, riderId, paymentStatus } = orderPatchSchema.parse(await readJson(req));
+  let o: Order | null = null;
+  if (riderId !== undefined) o = await assignRider(id, riderId);
+  if (status !== undefined) o = await setOrderStatus(id, status);
+  if (paymentStatus !== undefined) o = await setPaymentStatus(id, paymentStatus);
+  return ok(o);
+});
+export const DELETE = handle(async (_r, ctx) => {
+  await requireAdmin(); const id = (await ctx.params).id;
+  if (!(await db.get("orders", id))) throw new ApiError(404, "Order not found");
+  await db.remove("orders", id); return ok({ id });
+});

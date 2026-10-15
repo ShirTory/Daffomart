@@ -6,6 +6,7 @@ export const defaultSettings: StoreSettings = {
   phone: "", whatsapp: "", email: "", address: "Dhaka, Bangladesh", facebook: "",
   announcement: "Fast delivery inside Dhaka · Cash on delivery available",
   deliveryInside: 60, deliveryOutside: 120, freeDeliveryOver: 0,
+  serviceCharge: 0,
   hours: "Every day, 8:00 AM – 10:00 PM", mapUrl: "", minOrder: 0, logo: "",
   footerText: "",
   heroTitle: "Groceries & medicine,\ndelivered to your door.", heroSubtitle: "Fresh food, daily needs and trusted medicine — order online, pay on delivery.", heroCta: "Shop now",

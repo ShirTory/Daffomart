@@ -1,16 +1,20 @@
+import { NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { handle, ok, rateLimit, readJson } from "@/server/http";
-import { requireRider } from "@/server/riderAuth";
-import { riderLocationSchema } from "@/lib/validators";
-import type { Rider } from "@/lib/types";
+import { ApiError, handle } from "@/server/http";
+import { gateway } from "@/server/payments";
+import { setPaymentStatus } from "@/server/services";
+import type { Order } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
-/** Rider app → live GPS ping (every few seconds while "Share live location" is on). { lat, lng } saves it, { stop: true } clears it. */
-export const POST = handle(async (req) => {
-  const rider = await requireRider();
-  rateLimit(`loc:${rider.id}`, 40, 60_000);
-  const body = riderLocationSchema.parse(await readJson(req));
-  if ("stop" in body) await db.put<Rider>("riders", { ...rider, lat: undefined, lng: undefined, locAt: undefined });
-  else await db.put<Rider>("riders", { ...rider, lat: +body.lat.toFixed(6), lng: +body.lng.toFixed(6), locAt: new Date().toISOString() });
-  return ok({ saved: true });
-});
+/** The payment gateway redirects / posts here. The adapter verifies it; we then mark the order paid or failed. */
+async function done(req: Request) {
+  const gw = gateway(); if (!gw) throw new ApiError(503, "Online payment is not available");
+  const r = await gw.callback(req);
+  const o = (await db.list<Order>("orders")).find((x) => x.orderNo === r.orderNo);
+  if (!o) throw new ApiError(404, "Order not found");
+  if (r.paid) await db.update<Order>("orders", o.id, { paymentStatus: "paid", paymentRef: r.ref ?? o.paymentRef, updatedAt: new Date().toISOString() });
+  else await setPaymentStatus(o.id, "failed");
+  return NextResponse.redirect(new URL(`/track?no=${o.orderNo}&phone=${o.phone}`, req.url), 303);
+}
+export const GET = handle(done);
+export const POST = handle(done);
