@@ -1,15 +1,14 @@
-/** Shown instantly while a page loads, so every click gives immediate feedback. */
+/** Shown instantly while a page loads — DaffoMart logo + light pulse animation. */
 export default function Loading() {
   return (
-    <div className="animate-pulse space-y-6" aria-busy="true" aria-label="Loading">
-      <div className="h-40 rounded-2xl bg-gray-200 sm:h-64" />
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 xl:grid-cols-5">
-        {Array.from({ length: 10 }, (_, i) => (
-          <div key={i} className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
-            <div className="aspect-square bg-gray-200" />
-            <div className="space-y-2 p-3"><div className="h-3 w-4/5 rounded bg-gray-200" /><div className="h-3 w-2/5 rounded bg-gray-200" /><div className="h-8 rounded-lg bg-gray-200" /></div>
-          </div>))}
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4" aria-busy="true" aria-label="Loading DaffoMart">
+      <div className="relative">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="DaffoMart" className="h-16 w-16 animate-pulse object-contain sm:h-20 sm:w-20" />
+        <div className="absolute -inset-2 animate-ping rounded-full bg-primary/20" style={{ animationDuration: "1.5s" }} />
       </div>
+      <p className="text-lg font-bold tracking-tight text-primary">DaffoMart</p>
+      <p className="text-sm text-gray-400">Loading fresh groceries…</p>
     </div>
   );
 }

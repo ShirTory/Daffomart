@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import ProductCard from "@/components/store/ProductCard";
-import { getActiveProducts, getCategories } from "@/server/queries";
+import { getActiveProducts, getSettings, getCategories } from "@/server/queries";
 export const metadata: Metadata = { title: "All Products" };
 const PER = 24;
 
 type SP = { q?: string; cat?: string; sort?: string; max?: string; sale?: string; featured?: string; page?: string };
 export default async function ProductsPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams; const { q = "", cat = "", sort = "", max = "", sale = "", featured = "" } = sp; const page = Math.max(1, Number(sp.page) || 1);
-  const [all, categories] = await Promise.all([getActiveProducts(), getCategories()]);
+  const [all, settings, categories] = await Promise.all([getActiveProducts(), getSettings(), getCategories()]);
   let list = all.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()) && (!cat || p.categoryId === cat) && (!max || p.price <= Number(max)) && (!sale || (p.oldPrice && p.oldPrice > p.price)) && (!featured || p.featured));
   if (sort === "price_asc") list.sort((a, b) => a.price - b.price);
   else if (sort === "price_desc") list.sort((a, b) => b.price - a.price);
@@ -31,7 +31,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
       <section>
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2"><h1 className="text-2xl font-bold tracking-tight">{heading}{q && <span className="ml-2 text-base font-normal text-gray-500">for “{q}”</span>}</h1><p className="text-sm text-gray-500">{total} product{total === 1 ? "" : "s"}</p></div>
         {list.length === 0 ? <div className="rounded-2xl border bg-white p-12 text-center"><p className="text-4xl">🔍</p><p className="mt-2 font-semibold">No products found</p><p className="text-sm text-gray-500">Try a different search or filter.</p><Link href="/products" className="btn-primary mt-4">Clear filters</Link></div> :
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">{list.map((p) => <ProductCard key={p.id} p={p} />)}</div>}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">{list.map((p) => <ProductCard key={p.id} p={p} whatsapp={settings?.whatsapp} />)}</div>}
         {pages > 1 && <nav className="mt-8 flex flex-wrap justify-center gap-2" aria-label="Pagination">{Array.from({ length: pages }, (_, i) => i + 1).map((n) => <Link key={n} href={link({ page: String(n) })} className={`flex h-10 w-10 items-center justify-center rounded-lg border text-sm font-semibold ${n === page ? "border-primary bg-primary text-white" : "bg-white hover:bg-primary-soft"}`}>{n}</Link>)}</nav>}
       </section>
     </div>

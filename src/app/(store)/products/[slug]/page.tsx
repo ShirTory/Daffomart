@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import AddToCart from "@/components/store/AddToCart";
 import Gallery from "@/components/store/Gallery";
 import ProductCard from "@/components/store/ProductCard";
-import { getActiveProducts, getCategories } from "@/server/queries";
+import { getActiveProducts, getCategories, getSettings } from "@/server/queries";
 import { discountPct, taka } from "@/lib/format";
 export const revalidate = 60; // served from cache, refreshed when the admin saves (and at most every 60 s)
 
@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
-  const [all, categories] = [await getActiveProducts(), await getCategories()];
+  const [all, categories, settings] = await Promise.all([getActiveProducts(), getCategories(), getSettings()]);
   const { slug } = await params;
   const p = all.find((x) => x.slug === slug); if (!p) notFound();
   const related = all.filter((x) => x.categoryId === p.categoryId && x.id !== p.id).slice(0, 5);
@@ -37,7 +37,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <ul className="grid gap-2 border-t pt-4 text-sm text-gray-600 sm:grid-cols-2"><li>🚚 Fast home delivery</li><li>💵 Cash on delivery</li><li>🌿 Quality checked</li><li>↩️ Easy support</li></ul>
         </div>
       </div>
-      {related.length > 0 && <section className="mt-10"><h2 className="mb-4 text-xl font-bold">You may also like</h2><div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 xl:grid-cols-5">{related.map((r) => <ProductCard key={r.id} p={r} />)}</div></section>}
+      {related.length > 0 && <section className="mt-10"><h2 className="mb-4 text-xl font-bold">You may also like</h2><div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 xl:grid-cols-5">{related.map((r) => <ProductCard key={r.id} p={r} whatsapp={settings?.whatsapp} />)}</div></section>}
     </>
   );
 }
