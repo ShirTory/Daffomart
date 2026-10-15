@@ -61,6 +61,7 @@ export async function createOrder(input: z.infer<typeof orderCreateSchema>): Pro
   if (input.couponCode) { const r = await evaluateCoupon(input.couponCode, subtotal); discount = r.discount; couponCode = r.offer.code; }
   if (settings.minOrder > 0 && subtotal < settings.minOrder) throw new ApiError(400, `Minimum order amount is ৳${settings.minOrder}`);
   const delivery = zone.freeOver > 0 && subtotal - discount >= zone.freeOver ? 0 : zone.charge;
+  const serviceCharge = Math.max(0, Number(settings.serviceCharge) || 0);
   const opt = paymentOptions(settings).find((p) => p.id === input.payment);
   if (!opt || opt.disabled) throw new ApiError(400, opt?.disabled ? "Online payment is not available yet. Please choose another payment method." : "This payment method is not available. Please choose another one.");
   if (input.payment === "bkash" || input.payment === "nagad") {
@@ -73,8 +74,8 @@ export async function createOrder(input: z.infer<typeof orderCreateSchema>): Pro
     id: newId(), orderNo: orderNo(), name: input.name, phone: input.phone, address: input.address, zone: zone.id, zoneName: zone.name, ...(hasRx ? { hasRx: true } : {}),
     payment: input.payment, paymentStatus: input.payment === "bkash" || input.payment === "nagad" ? "pending" : "unpaid",
     ...(input.payment === "bkash" || input.payment === "nagad" ? { paymentRef: input.paymentRef, paymentFrom: input.paymentFrom } : {}),
-    ...(input.lat !== undefined && input.lng !== undefined ? { lat: input.lat, lng: input.lng } : {}), note: input.note ?? "", items, subtotal, delivery, discount, ...(couponCode ? { couponCode } : {}),
-    total: subtotal - discount + delivery, status: "pending", createdAt: now, updatedAt: now,
+    ...(input.lat !== undefined && input.lng !== undefined ? { lat: input.lat, lng: input.lng } : {}), note: input.note ?? "", items, subtotal, delivery, serviceCharge, discount, ...(couponCode ? { couponCode } : {}),
+    total: subtotal - discount + delivery + serviceCharge, status: "pending", createdAt: now, updatedAt: now,
   };
   await db.put("orders", order);
   for (const i of items) { const p = map.get(i.id)!; await db.update<Product>("products", p.id, { stock: p.stock - i.qty, sold: p.sold + i.qty, updatedAt: now }); }
@@ -97,21 +98,6 @@ export async function setOrderStatus(id: string, status: Order["status"]) {
     patch.stockRestored = false;
   }
   return (await db.update<Order>("orders", id, patch))!;
-}
-
-/** Customer self-cancel: only within 2 minutes of placement, while still pending/confirmed, verified by orderNo + phone. */
-const CANCEL_WINDOW_MS = 2 * 60_000;
-export async function cancelOrderByCustomer(orderNo: string, phone: string) {
-  const no = orderNo.trim().toUpperCase();
-  const ph = phone.trim();
-  if (!no || !ph) throw new ApiError(400, "Enter your order number and phone number");
-  const o = (await db.list<Order>("orders")).find((x) => x.orderNo === no && x.phone === ph);
-  if (!o) throw new ApiError(404, "No order found with these details");
-  if (o.status === "cancelled") throw new ApiError(400, "This order is already cancelled");
-  if (!["pending", "confirmed"].includes(o.status)) throw new ApiError(400, "This order can no longer be cancelled online. Please contact the store.");
-  const age = Date.now() - new Date(o.createdAt).getTime();
-  if (age > CANCEL_WINDOW_MS) throw new ApiError(400, "Cancellation window has closed (available for 2 minutes after placing the order). Please contact the store.");
-  return setOrderStatus(o.id, "cancelled");
 }
 
 export async function setPaymentStatus(id: string, paymentStatus: NonNullable<Order["paymentStatus"]>) {

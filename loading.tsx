@@ -1,14 +1,15 @@
-/** Shown instantly while a page loads, so every click gives immediate feedback. */
+import Image from "next/image";
+
+/** Shown instantly while a page loads — logo + brand with a light pulse. */
 export default function Loading() {
   return (
-    <div className="animate-pulse space-y-6" aria-busy="true" aria-label="Loading">
-      <div className="h-40 rounded-2xl bg-gray-200 sm:h-64" />
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 xl:grid-cols-5">
-        {Array.from({ length: 10 }, (_, i) => (
-          <div key={i} className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
-            <div className="aspect-square bg-gray-200" />
-            <div className="space-y-2 p-3"><div className="h-3 w-4/5 rounded bg-gray-200" /><div className="h-3 w-2/5 rounded bg-gray-200" /><div className="h-8 rounded-lg bg-gray-200" /></div>
-          </div>))}
+    <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4" aria-busy="true" aria-label="Loading DaffoMart">
+      <div className="relative h-16 w-16 animate-pulse sm:h-20 sm:w-20">
+        <Image src="/logo.png" alt="DaffoMart" fill className="object-contain" priority />
+      </div>
+      <p className="text-lg font-bold tracking-tight text-primary sm:text-xl">DaffoMart</p>
+      <div className="mt-2 h-1.5 w-24 overflow-hidden rounded-full bg-primary-soft">
+        <div className="h-full w-1/2 animate-[shimmer_1.2s_ease-in-out_infinite] rounded-full bg-primary" />
       </div>
     </div>
   );

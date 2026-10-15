@@ -28,6 +28,8 @@ export interface StoreSettings {
   announcement: string; facebook: string; whatsapp: string;
   /** legacy defaults, used only to create the first delivery zones */
   deliveryInside: number; deliveryOutside: number; freeDeliveryOver: number;
+  /** Flat service / packaging charge applied at checkout (0 = off) */
+  serviceCharge: number;
   hours: string; mapUrl: string; minOrder: number; logo: string; footerText: string;
   heroTitle: string; heroSubtitle: string; heroCta: string; features: Feature[];
   payCod: boolean; payBkash: boolean; bkashNumber: string; payNagad: boolean; nagadNumber: string; payOnline: boolean; payInstructions: string;
@@ -62,7 +64,7 @@ export interface Order {
   id: string; orderNo: string; name: string; phone: string; address: string; zone: string; zoneName?: string;
   riderId?: string; riderName?: string; riderPhone?: string; hasRx?: boolean;
   payment: PaymentMethod; paymentStatus?: PaymentStatus; paymentRef?: string; paymentFrom?: string; lat?: number; lng?: number; note: string;
-  items: OrderItem[]; subtotal: number; delivery: number; discount: number; couponCode?: string; total: number;
+  items: OrderItem[]; subtotal: number; delivery: number; serviceCharge?: number; discount: number; couponCode?: string; total: number;
   status: OrderStatus; stockRestored?: boolean; createdAt: string; updatedAt: string;
 }
 

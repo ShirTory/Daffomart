@@ -1,43 +1,58 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
-import type { Metadata } from "next";
-import AddToCart from "@/components/store/AddToCart";
-import Gallery from "@/components/store/Gallery";
-import ProductCard from "@/components/store/ProductCard";
-import { getActiveProducts, getCategories } from "@/server/queries";
-import { discountPct, taka } from "@/lib/format";
-export const revalidate = 60; // served from cache, refreshed when the admin saves (and at most every 60 s)
+"use client";
+import { useState } from "react";
+import { api, ApiClientError } from "@/lib/api";
+import { Empty, ErrorBox, Field, ImageUpload, Icon, Modal, PageHeader, PageLoader, Spinner, StatusBadge, Toggle, useConfirm, useList, useToast } from "@/components/admin/ui";
+import type { Banner } from "@/lib/types";
 
-const find = async (slug: string) => (await getActiveProducts()).find((p) => p.slug === slug);
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const p = await find((await params).slug);
-  return { title: p?.name ?? "Product", description: p?.description, openGraph: p?.image ? { images: [p.image] } : undefined };
-}
+type Form = { title: string; subtitle: string; image?: string; mobileImage?: string; ctaLabel: string; ctaHref: string; active: boolean; sortOrder: string };
+export default function CoversPage() {
+  const toast = useToast(); const { confirm, node } = useConfirm();
+  const { data, setData, loading, error, reload } = useList<Banner[]>("/api/banners");
+  const [edit, setEdit] = useState<{ id?: string; f: Form } | null>(null); const [busy, setBusy] = useState(false); const [errs, setErrs] = useState<Record<string, string>>({});
+  const open = (b?: Banner) => { setErrs({}); setEdit(b ? { id: b.id, f: { title: b.title, subtitle: b.subtitle, image: b.image, mobileImage: b.mobileImage, ctaLabel: b.ctaLabel, ctaHref: b.ctaHref, active: b.active, sortOrder: String(b.sortOrder) } } : { f: { title: "", subtitle: "", ctaLabel: "Shop now", ctaHref: "/products", active: true, sortOrder: String((data?.length ?? 0) + 1) } }); };
+  const set = <K extends keyof Form>(k: K, v: Form[K]) => setEdit((e) => (e ? { ...e, f: { ...e.f, [k]: v } } : e));
+  const save = async () => {
+    if (!edit) return; setBusy(true); setErrs({});
+    try {
+      const s = await api<Banner>(edit.id ? `/api/banners/${edit.id}` : "/api/banners", { method: edit.id ? "PUT" : "POST", body: { ...edit.f, image: edit.f.image ?? "" } });
+      setData((d) => (edit.id ? d!.map((x) => (x.id === s.id ? s : x)) : [...(d ?? []), s]).sort((a, b) => a.sortOrder - b.sortOrder));
+      toast("Cover image saved"); setEdit(null);
+    } catch (e: any) { if (e instanceof ApiClientError) setErrs(e.fields); toast(e.message, "err"); } finally { setBusy(false); }
+  };
+  const del = async (b: Banner) => { if (!(await confirm("Delete this cover image?"))) return; try { await api(`/api/banners/${b.id}`, { method: "DELETE" }); setData((d) => d!.filter((x) => x.id !== b.id)); toast("Deleted"); } catch (e: any) { toast(e.message, "err"); } };
+  const flip = async (b: Banner) => { try { const s = await api<Banner>(`/api/banners/${b.id}`, { method: "PUT", body: { ...b, active: !b.active } }); setData((d) => d!.map((x) => (x.id === s.id ? s : x))); } catch (e: any) { toast(e.message, "err"); } };
 
-export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
-  const [all, categories] = [await getActiveProducts(), await getCategories()];
-  const { slug } = await params;
-  const p = all.find((x) => x.slug === slug); if (!p) notFound();
-  const related = all.filter((x) => x.categoryId === p.categoryId && x.id !== p.id).slice(0, 5);
-  const cat = categories.find((c) => c.id === p.categoryId); const off = discountPct(p.price, p.oldPrice);
-  const images = p.images?.length ? p.images : p.image ? [p.image] : [];
   return (
     <>
-      <nav className="mb-4 text-sm text-gray-500"><Link href="/" className="hover:text-primary">Home</Link> / <Link href="/products" className="hover:text-primary">Products</Link>{cat && <> / <Link href={`/products?cat=${cat.id}`} className="hover:text-primary">{cat.name}</Link></>}</nav>
-      <div className="grid gap-8 rounded-2xl border bg-white p-5 shadow-card md:grid-cols-2 md:p-8">
-        <Gallery images={images} emoji={p.emoji} name={p.name} />
-        <div className="space-y-4">
-          {cat && <p className="text-sm font-medium text-primary">{cat.name}</p>}
-          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">{p.name}</h1>
-          <p className="text-sm text-gray-500">{p.rating > 0 && <>⭐ {p.rating.toFixed(1)} · </>}{p.sold > 0 && <>{p.sold}+ sold · </>}{p.unit}</p>
-          <div className="flex items-baseline gap-3"><span className="text-4xl font-extrabold text-primary">{taka(p.price)}</span>{p.oldPrice ? <span className="text-lg text-gray-400 line-through">{taka(p.oldPrice)}</span> : null}{off > 0 && <span className="rounded-full bg-accent px-2.5 py-0.5 text-sm font-bold text-white">Save {off}%</span>}</div>
-          <p className={`text-sm font-medium ${p.stock > 0 ? "text-emerald-600" : "text-red-600"}`}>{p.stock <= 0 ? "Out of stock" : p.stock <= 10 ? `Only ${p.stock} left in stock` : "In stock"}</p>
-          {p.description && <p className="whitespace-pre-line text-sm leading-relaxed text-gray-600">{p.description}</p>}
-          <div className="max-w-sm pt-2"><AddToCart product={p} withQty /></div>
-          <ul className="grid gap-2 border-t pt-4 text-sm text-gray-600 sm:grid-cols-2"><li>🚚 Fast home delivery</li><li>💵 Cash on delivery</li><li>🌿 Quality checked</li><li>↩️ Easy support</li></ul>
-        </div>
-      </div>
-      {related.length > 0 && <section className="mt-10"><h2 className="mb-4 text-xl font-bold">You may also like</h2><div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 xl:grid-cols-5">{related.map((r) => <ProductCard key={r.id} p={r} />)}</div></section>}
+      <PageHeader title="Cover Images" subtitle="Slides shown at the top of your home page. If none are active, a default banner is shown."><button className="btn-primary" onClick={() => open()}><Icon name="plus" className="h-4 w-4" />Add cover image</button></PageHeader>
+      <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">Recommended size: <b>1920 × 600 px</b> (wide). Keep important text near the centre. You can add a separate square-ish image for phones.</div>
+      {loading ? <PageLoader /> : error ? <ErrorBox msg={error} retry={reload} /> : !data?.length ? <div className="card"><Empty icon="covers" title="No cover images yet" hint="Upload a wide image to show a slider on your home page." action={<button className="btn-primary" onClick={() => open()}>Add cover image</button>} /></div> : (
+        <div className="grid gap-5 lg:grid-cols-2">
+          {data.map((b) => (
+            <div key={b.id} className="card overflow-hidden">
+              <div className="relative aspect-[16/5] bg-gray-100">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={b.image} alt="" className="h-full w-full object-cover" />
+                {(b.title || b.subtitle) && <div className="absolute inset-0 flex flex-col justify-center bg-gradient-to-r from-black/55 to-transparent p-5 text-white"><p className="text-lg font-bold">{b.title}</p><p className="text-sm text-white/85">{b.subtitle}</p></div>}</div>
+              <div className="flex items-center justify-between gap-3 p-4"><div className="flex items-center gap-3"><Toggle checked={b.active} onChange={() => flip(b)} /><StatusBadge status={b.active ? "active" : "inactive"} label={b.active ? "Showing" : "Hidden"} /><span className="text-xs text-gray-400">Order #{b.sortOrder}</span></div>
+                <div><button className="btn-ghost btn-sm" onClick={() => open(b)}><Icon name="edit" className="h-4 w-4" />Edit</button><button className="btn-ghost btn-sm text-red-600" onClick={() => del(b)}><Icon name="trash" className="h-4 w-4" /></button></div></div>
+            </div>))}
+        </div>)}
+      <Modal open={!!edit} onClose={() => !busy && setEdit(null)} title={edit?.id ? "Edit cover image" : "Add cover image"} wide
+        footer={<><button className="btn-outline" onClick={() => setEdit(null)}>Cancel</button><button className="btn-primary" onClick={save} disabled={busy}>{busy && <Spinner className="h-4 w-4" />}Save</button></>}>
+        {edit && <div className="space-y-4">
+          <ImageUpload kind="banner" label="Cover image (desktop)" aspect="aspect-[16/5]" value={edit.f.image} onChange={(v) => set("image", v)} hint="Wide image, 1920 × 600 px recommended" />
+          {errs.image && <p className="text-xs text-red-600">{errs.image}</p>}
+          <div className="max-w-xs"><ImageUpload kind="banner" label="Mobile image (optional)" aspect="aspect-[4/3]" value={edit.f.mobileImage} onChange={(v) => set("mobileImage", v)} hint="e.g. 1000 × 750 px" /></div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Headline (optional)"><input className="input" value={edit.f.title} onChange={(e) => set("title", e.target.value)} placeholder="Fresh groceries, delivered fast" /></Field>
+            <Field label="Sub-headline (optional)"><input className="input" value={edit.f.subtitle} onChange={(e) => set("subtitle", e.target.value)} /></Field>
+            <Field label="Button text"><input className="input" value={edit.f.ctaLabel} onChange={(e) => set("ctaLabel", e.target.value)} placeholder="Shop now" /></Field>
+            <Field label="Button link" hint="e.g. /products or /products?cat=fruit"><input className="input" value={edit.f.ctaHref} onChange={(e) => set("ctaHref", e.target.value)} /></Field>
+            <Field label="Sort order"><input className="input" type="number" value={edit.f.sortOrder} onChange={(e) => set("sortOrder", e.target.value)} /></Field>
+          </div>
+          <Toggle checked={edit.f.active} onChange={(v) => set("active", v)} label="Show on home page" />
+        </div>}
+      </Modal>
+      {node}
     </>
   );
 }

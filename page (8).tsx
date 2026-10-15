@@ -1,39 +1,55 @@
-import type { Metadata } from "next";
-import Link from "next/link";
-import ProductCard from "@/components/store/ProductCard";
-import { getActiveProducts, getCategories } from "@/server/queries";
-export const metadata: Metadata = { title: "All Products" };
-const PER = 24;
+"use client";
+import { useState } from "react";
+import { api, ApiClientError } from "@/lib/api";
+import { Empty, ErrorBox, Field, Icon, Modal, PageHeader, PageLoader, Spinner, StatusBadge, Toggle, useConfirm, useList, useToast } from "@/components/admin/ui";
+import { taka } from "@/lib/format";
+import type { DeliveryZone } from "@/lib/types";
 
-type SP = { q?: string; cat?: string; sort?: string; max?: string; sale?: string; featured?: string; page?: string };
-export default async function ProductsPage({ searchParams }: { searchParams: Promise<SP> }) {
-  const sp = await searchParams; const { q = "", cat = "", sort = "", max = "", sale = "", featured = "" } = sp; const page = Math.max(1, Number(sp.page) || 1);
-  const [all, categories] = await Promise.all([getActiveProducts(), getCategories()]);
-  let list = all.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()) && (!cat || p.categoryId === cat) && (!max || p.price <= Number(max)) && (!sale || (p.oldPrice && p.oldPrice > p.price)) && (!featured || p.featured));
-  if (sort === "price_asc") list.sort((a, b) => a.price - b.price);
-  else if (sort === "price_desc") list.sort((a, b) => b.price - a.price);
-  else if (sort === "popular") list.sort((a, b) => b.sold - a.sold);
-  else list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const total = list.length, pages = Math.max(1, Math.ceil(total / PER)); list = list.slice((page - 1) * PER, page * PER);
-  const link = (o: Record<string, string>) => { const p = new URLSearchParams(Object.entries({ q, cat, sort, max, sale, featured, ...o }).filter(([, v]) => v) as [string, string][]); const s = p.toString(); return `/products${s ? `?${s}` : ""}`; };
-  const heading = sale ? "Offers & Discounts" : featured ? "Featured Products" : cat ? categories.find((c) => c.id === cat)?.name ?? "Products" : "All Products";
-  const chip = (active: boolean) => `rounded-lg px-3 py-1.5 transition ${active ? "bg-primary text-white" : "bg-gray-50 text-gray-700 hover:bg-primary-soft"}`;
-
+type Form = { name: string; charge: string; freeOver: string; eta: string; sortOrder: string; active: boolean };
+export default function DeliveryPage() {
+  const toast = useToast(); const { confirm, node } = useConfirm();
+  const { data, setData, loading, error, reload } = useList<DeliveryZone[]>("/api/zones");
+  const [edit, setEdit] = useState<{ id?: string; f: Form } | null>(null); const [busy, setBusy] = useState(false); const [errs, setErrs] = useState<Record<string, string>>({});
+  const open = (z?: DeliveryZone) => { setErrs({}); setEdit(z ? { id: z.id, f: { name: z.name, charge: String(z.charge), freeOver: String(z.freeOver ?? 0), eta: z.eta ?? "", sortOrder: String(z.sortOrder), active: z.active } } : { f: { name: "", charge: "60", freeOver: "0", eta: "", sortOrder: String((data?.length ?? 0) + 1), active: true } }); };
+  const set = <K extends keyof Form>(k: K, v: Form[K]) => setEdit((e) => (e ? { ...e, f: { ...e.f, [k]: v } } : e));
+  const sorted = (l: DeliveryZone[]) => [...l].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  const save = async () => {
+    if (!edit) return; setBusy(true); setErrs({});
+    try {
+      const s = await api<DeliveryZone>(edit.id ? `/api/zones/${edit.id}` : "/api/zones", { method: edit.id ? "PUT" : "POST", body: edit.f });
+      setData((d) => sorted(edit.id ? d!.map((x) => (x.id === s.id ? s : x)) : [...(d ?? []), s])); toast("Delivery area saved"); setEdit(null);
+    } catch (e: any) { if (e instanceof ApiClientError) setErrs(e.fields); toast(e.message, "err"); } finally { setBusy(false); }
+  };
+  const del = async (z: DeliveryZone) => {
+    if (!(await confirm(`Delete delivery area "${z.name}"? Old orders keep their saved area name.`))) return;
+    try { await api(`/api/zones/${z.id}`, { method: "DELETE" }); setData((d) => d!.filter((x) => x.id !== z.id)); toast("Delivery area deleted"); } catch (e: any) { toast(e.message, "err"); }
+  };
+  const quick = async (z: DeliveryZone, active: boolean) => {
+    try { const s = await api<DeliveryZone>(`/api/zones/${z.id}`, { method: "PUT", body: { ...z, active } }); setData((d) => d!.map((x) => (x.id === s.id ? s : x))); } catch (e: any) { toast(e.message, "err"); }
+  };
   return (
-    <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
-      <aside className="h-fit space-y-6 rounded-2xl border bg-white p-5 text-sm shadow-card lg:sticky lg:top-40">
-        <div><h3 className="mb-3 font-bold">Categories</h3><div className="flex flex-wrap gap-2 lg:flex-col lg:gap-1">
-          <Link href={link({ cat: "", page: "" })} className={chip(!cat)}>All</Link>
-          {categories.map((c) => <Link key={c.id} href={link({ cat: c.id, page: "" })} className={chip(cat === c.id)}>{c.emoji} {c.name}</Link>)}</div></div>
-        <div><h3 className="mb-3 font-bold">Max price</h3><div className="flex flex-wrap gap-2">{["", "100", "300", "500", "1000"].map((m) => <Link key={m} href={link({ max: m, page: "" })} className={chip(max === m)}>{m ? `৳${m}` : "Any"}</Link>)}</div></div>
-        <div><h3 className="mb-3 font-bold">Sort by</h3><div className="flex flex-wrap gap-2 lg:flex-col lg:gap-1">{[["", "Newest"], ["price_asc", "Price: low to high"], ["price_desc", "Price: high to low"], ["popular", "Most popular"]].map(([v, l]) => <Link key={v} href={link({ sort: v, page: "" })} className={chip(sort === v)}>{l}</Link>)}</div></div>
-      </aside>
-      <section>
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2"><h1 className="text-2xl font-bold tracking-tight">{heading}{q && <span className="ml-2 text-base font-normal text-gray-500">for “{q}”</span>}</h1><p className="text-sm text-gray-500">{total} product{total === 1 ? "" : "s"}</p></div>
-        {list.length === 0 ? <div className="rounded-2xl border bg-white p-12 text-center"><p className="text-4xl">🔍</p><p className="mt-2 font-semibold">No products found</p><p className="text-sm text-gray-500">Try a different search or filter.</p><Link href="/products" className="btn-primary mt-4">Clear filters</Link></div> :
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">{list.map((p) => <ProductCard key={p.id} p={p} />)}</div>}
-        {pages > 1 && <nav className="mt-8 flex flex-wrap justify-center gap-2" aria-label="Pagination">{Array.from({ length: pages }, (_, i) => i + 1).map((n) => <Link key={n} href={link({ page: String(n) })} className={`flex h-10 w-10 items-center justify-center rounded-lg border text-sm font-semibold ${n === page ? "border-primary bg-primary text-white" : "bg-white hover:bg-primary-soft"}`}>{n}</Link>)}</nav>}
-      </section>
-    </div>
+    <>
+      <PageHeader title="Delivery areas & charges" subtitle="Customers pick one of these areas at checkout. Charges are applied automatically."><button className="btn-primary" onClick={() => open()}><Icon name="plus" className="h-4 w-4" />Add area</button></PageHeader>
+      {loading ? <PageLoader /> : error ? <ErrorBox msg={error} retry={reload} /> : !data?.length ? <div className="card"><Empty icon="delivery" title="No delivery areas yet" hint="Add at least one area, otherwise customers cannot place orders." action={<button className="btn-primary" onClick={() => open()}>Add area</button>} /></div> : (
+        <div className="card overflow-hidden"><div className="scroll-thin overflow-x-auto"><table className="w-full min-w-[640px]">
+          <thead className="bg-gray-50"><tr><th className="th">Area</th><th className="th">Delivery charge</th><th className="th">Free delivery over</th><th className="th">Delivery time</th><th className="th">Active</th><th className="th text-right">Actions</th></tr></thead>
+          <tbody className="divide-y">{data.map((z) => (
+            <tr key={z.id} className="hover:bg-gray-50"><td className="td font-semibold">{z.name}</td><td className="td">{taka(z.charge)}</td><td className="td text-gray-600">{z.freeOver > 0 ? taka(z.freeOver) : "—"}</td><td className="td text-gray-600">{z.eta || "—"}</td>
+              <td className="td"><Toggle checked={z.active} onChange={(v) => quick(z, v)} /></td>
+              <td className="td text-right"><button className="btn-ghost btn-sm" onClick={() => open(z)} aria-label="Edit"><Icon name="edit" className="h-4 w-4" /></button><button className="btn-ghost btn-sm text-red-600" onClick={() => del(z)} aria-label="Delete"><Icon name="trash" className="h-4 w-4" /></button></td></tr>))}</tbody></table></div></div>)}
+      <p className="mt-3 text-xs text-gray-500">Tip: add areas like “Savar”, “Mirpur”, “Chattogram” with their own charge. Hidden (inactive) areas are not shown to customers.</p>
+      <Modal open={!!edit} onClose={() => !busy && setEdit(null)} title={edit?.id ? "Edit delivery area" : "Add delivery area"}
+        footer={<><button className="btn-outline" onClick={() => setEdit(null)}>Cancel</button><button className="btn-primary" onClick={save} disabled={busy}>{busy && <Spinner className="h-4 w-4" />}Save</button></>}>
+        {edit && <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Area name" error={errs.name} className="sm:col-span-2"><input className="input" value={edit.f.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Inside Dhaka" /></Field>
+          <Field label="Delivery charge (৳)" error={errs.charge}><input className="input" type="number" min="0" value={edit.f.charge} onChange={(e) => set("charge", e.target.value)} /></Field>
+          <Field label="Free delivery over (৳)" hint="0 = never free"><input className="input" type="number" min="0" value={edit.f.freeOver} onChange={(e) => set("freeOver", e.target.value)} /></Field>
+          <Field label="Delivery time" hint="Shown to customers, e.g. Same day"><input className="input" value={edit.f.eta} onChange={(e) => set("eta", e.target.value)} /></Field>
+          <Field label="Sort order"><input className="input" type="number" value={edit.f.sortOrder} onChange={(e) => set("sortOrder", e.target.value)} /></Field>
+          <div className="sm:col-span-2"><Toggle checked={edit.f.active} onChange={(v) => set("active", v)} label="Available to customers" /></div>
+        </div>}
+      </Modal>
+      {node}
+    </>
   );
 }

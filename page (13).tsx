@@ -1,58 +1,53 @@
 "use client";
 import { useState } from "react";
-import { api, ApiClientError } from "@/lib/api";
-import { Empty, ErrorBox, Field, ImageUpload, Icon, Modal, PageHeader, PageLoader, Spinner, StatusBadge, Toggle, useConfirm, useList, useToast } from "@/components/admin/ui";
-import type { Banner } from "@/lib/types";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
+import { Icon, Spinner } from "@/components/admin/ui";
 
-type Form = { title: string; subtitle: string; image?: string; mobileImage?: string; ctaLabel: string; ctaHref: string; active: boolean; sortOrder: string };
-export default function CoversPage() {
-  const toast = useToast(); const { confirm, node } = useConfirm();
-  const { data, setData, loading, error, reload } = useList<Banner[]>("/api/banners");
-  const [edit, setEdit] = useState<{ id?: string; f: Form } | null>(null); const [busy, setBusy] = useState(false); const [errs, setErrs] = useState<Record<string, string>>({});
-  const open = (b?: Banner) => { setErrs({}); setEdit(b ? { id: b.id, f: { title: b.title, subtitle: b.subtitle, image: b.image, mobileImage: b.mobileImage, ctaLabel: b.ctaLabel, ctaHref: b.ctaHref, active: b.active, sortOrder: String(b.sortOrder) } } : { f: { title: "", subtitle: "", ctaLabel: "Shop now", ctaHref: "/products", active: true, sortOrder: String((data?.length ?? 0) + 1) } }); };
-  const set = <K extends keyof Form>(k: K, v: Form[K]) => setEdit((e) => (e ? { ...e, f: { ...e.f, [k]: v } } : e));
-  const save = async () => {
-    if (!edit) return; setBusy(true); setErrs({});
-    try {
-      const s = await api<Banner>(edit.id ? `/api/banners/${edit.id}` : "/api/banners", { method: edit.id ? "PUT" : "POST", body: { ...edit.f, image: edit.f.image ?? "" } });
-      setData((d) => (edit.id ? d!.map((x) => (x.id === s.id ? s : x)) : [...(d ?? []), s]).sort((a, b) => a.sortOrder - b.sortOrder));
-      toast("Cover image saved"); setEdit(null);
-    } catch (e: any) { if (e instanceof ApiClientError) setErrs(e.fields); toast(e.message, "err"); } finally { setBusy(false); }
+export default function AdminLogin() {
+  const router = useRouter();
+  const [email, setEmail] = useState(""); const [password, setPassword] = useState("");
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [show, setShow] = useState(false);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setErr(""); setBusy(true);
+    try { await api("/api/auth/login", { method: "POST", body: { email, password } }); router.replace("/admin"); router.refresh(); }
+    catch (x: any) { setErr(x.message); setBusy(false); }
   };
-  const del = async (b: Banner) => { if (!(await confirm("Delete this cover image?"))) return; try { await api(`/api/banners/${b.id}`, { method: "DELETE" }); setData((d) => d!.filter((x) => x.id !== b.id)); toast("Deleted"); } catch (e: any) { toast(e.message, "err"); } };
-  const flip = async (b: Banner) => { try { const s = await api<Banner>(`/api/banners/${b.id}`, { method: "PUT", body: { ...b, active: !b.active } }); setData((d) => d!.map((x) => (x.id === s.id ? s : x))); } catch (e: any) { toast(e.message, "err"); } };
-
   return (
-    <>
-      <PageHeader title="Cover Images" subtitle="Slides shown at the top of your home page. If none are active, a default banner is shown."><button className="btn-primary" onClick={() => open()}><Icon name="plus" className="h-4 w-4" />Add cover image</button></PageHeader>
-      <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">Recommended size: <b>1920 × 600 px</b> (wide). Keep important text near the centre. You can add a separate square-ish image for phones.</div>
-      {loading ? <PageLoader /> : error ? <ErrorBox msg={error} retry={reload} /> : !data?.length ? <div className="card"><Empty icon="covers" title="No cover images yet" hint="Upload a wide image to show a slider on your home page." action={<button className="btn-primary" onClick={() => open()}>Add cover image</button>} /></div> : (
-        <div className="grid gap-5 lg:grid-cols-2">
-          {data.map((b) => (
-            <div key={b.id} className="card overflow-hidden">
-              <div className="relative aspect-[16/5] bg-gray-100">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={b.image} alt="" className="h-full w-full object-cover" />
-                {(b.title || b.subtitle) && <div className="absolute inset-0 flex flex-col justify-center bg-gradient-to-r from-black/55 to-transparent p-5 text-white"><p className="text-lg font-bold">{b.title}</p><p className="text-sm text-white/85">{b.subtitle}</p></div>}</div>
-              <div className="flex items-center justify-between gap-3 p-4"><div className="flex items-center gap-3"><Toggle checked={b.active} onChange={() => flip(b)} /><StatusBadge status={b.active ? "active" : "inactive"} label={b.active ? "Showing" : "Hidden"} /><span className="text-xs text-gray-400">Order #{b.sortOrder}</span></div>
-                <div><button className="btn-ghost btn-sm" onClick={() => open(b)}><Icon name="edit" className="h-4 w-4" />Edit</button><button className="btn-ghost btn-sm text-red-600" onClick={() => del(b)}><Icon name="trash" className="h-4 w-4" /></button></div></div>
-            </div>))}
-        </div>)}
-      <Modal open={!!edit} onClose={() => !busy && setEdit(null)} title={edit?.id ? "Edit cover image" : "Add cover image"} wide
-        footer={<><button className="btn-outline" onClick={() => setEdit(null)}>Cancel</button><button className="btn-primary" onClick={save} disabled={busy}>{busy && <Spinner className="h-4 w-4" />}Save</button></>}>
-        {edit && <div className="space-y-4">
-          <ImageUpload kind="banner" label="Cover image (desktop)" aspect="aspect-[16/5]" value={edit.f.image} onChange={(v) => set("image", v)} hint="Wide image, 1920 × 600 px recommended" />
-          {errs.image && <p className="text-xs text-red-600">{errs.image}</p>}
-          <div className="max-w-xs"><ImageUpload kind="banner" label="Mobile image (optional)" aspect="aspect-[4/3]" value={edit.f.mobileImage} onChange={(v) => set("mobileImage", v)} hint="e.g. 1000 × 750 px" /></div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Headline (optional)"><input className="input" value={edit.f.title} onChange={(e) => set("title", e.target.value)} placeholder="Fresh groceries, delivered fast" /></Field>
-            <Field label="Sub-headline (optional)"><input className="input" value={edit.f.subtitle} onChange={(e) => set("subtitle", e.target.value)} /></Field>
-            <Field label="Button text"><input className="input" value={edit.f.ctaLabel} onChange={(e) => set("ctaLabel", e.target.value)} placeholder="Shop now" /></Field>
-            <Field label="Button link" hint="e.g. /products or /products?cat=fruit"><input className="input" value={edit.f.ctaHref} onChange={(e) => set("ctaHref", e.target.value)} /></Field>
-            <Field label="Sort order"><input className="input" type="number" value={edit.f.sortOrder} onChange={(e) => set("sortOrder", e.target.value)} /></Field>
+    <div className="grid min-h-screen lg:grid-cols-2">
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-primary-deeper via-primary-dark to-primary p-12 text-white lg:flex">
+        <div className="w-fit rounded-2xl bg-white px-5 py-3"><Image src="/logo-horizontal.png" alt="DaffoMart" width={778} height={168} className="h-12 w-auto" priority /></div>
+        <div><h2 className="text-4xl font-extrabold leading-tight">Run your store<br />from one dashboard.</h2>
+          <p className="mt-4 max-w-md text-white/70">Manage products, orders, cover images and offers — all in one secure place.</p>
+          <div className="mt-8 flex gap-3 text-sm">{["Orders", "Inventory", "Offers", "Analytics"].map((t) => <span key={t} className="rounded-full bg-white/10 px-3 py-1 text-white/80">{t}</span>)}</div></div>
+        <p className="text-xs text-white/40">© {new Date().getFullYear()} DaffoMart. All rights reserved.</p>
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-accent/20 blur-3xl" />
+      </div>
+      <div className="flex items-center justify-center bg-gray-50 px-5 py-10">
+        <form onSubmit={submit} className="w-full max-w-sm">
+          <div className="mb-8 lg:hidden"><Image src="/logo-horizontal.png" alt="DaffoMart" width={778} height={168} className="h-11 w-auto" priority /></div>
+          <h1 className="text-2xl font-bold text-gray-900">Admin sign in</h1>
+          <p className="mt-1 text-sm text-gray-500">Enter your credentials to access the dashboard.</p>
+          <div className="mt-6 space-y-4">
+            <div><label className="label">Email</label><input className="input" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@yourstore.com" /></div>
+            <div><label className="label">Password</label>
+              <div className="relative"><input className="input pr-16" type={show ? "text" : "password"} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+                <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-500 hover:text-primary">{show ? "Hide" : "Show"}</button></div></div>
+            {err && <div className="flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700"><Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />{err}</div>}
+            <button className="btn-primary w-full py-2.5" disabled={busy}>{busy ? <Spinner className="h-4 w-4" /> : null}{busy ? "Signing in…" : "Sign in"}</button>
           </div>
-          <Toggle checked={edit.f.active} onChange={(v) => set("active", v)} label="Show on home page" />
-        </div>}
-      </Modal>
-      {node}
-    </>
+          <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4 text-center">
+            <p className="text-sm font-semibold text-gray-800">Rider / Employee?</p>
+            <p className="mt-0.5 text-xs text-gray-500">Apply for an account. An admin will approve it before you can sign in.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <a href="/rider/register" className="btn-primary py-2 text-sm">Register</a>
+              <a href="/rider/login" className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:border-primary hover:text-primary">Rider sign in</a>
+            </div>
+          </div>
+          <a href="/" className="mt-6 block text-center text-sm text-gray-500 hover:text-primary">← Back to store</a>
+        </form>
+      </div>
+    </div>
   );
 }
