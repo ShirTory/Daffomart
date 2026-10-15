@@ -11,10 +11,8 @@ export interface Product {
 }
 
 export interface Banner {
-  id: string; title: string; subtitle: string; description?: string; discountText?: string;
-  image: string; mobileImage?: string;
-  ctaLabel: string; ctaHref: string; active: boolean; sortOrder: number;
-  startsAt?: string; endsAt?: string; createdAt: string;
+  id: string; title: string; subtitle: string; image: string; mobileImage?: string;
+  ctaLabel: string; ctaHref: string; active: boolean; sortOrder: number; createdAt: string;
 }
 
 export type DiscountType = "percent" | "flat";

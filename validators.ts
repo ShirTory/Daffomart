@@ -36,16 +36,12 @@ export const categorySchema = z.object({
 export const bannerSchema = z.object({
   title: z.string().trim().max(120).default(""),
   subtitle: z.string().trim().max(240).default(""),
-  description: z.string().trim().max(400).default(""),
-  discountText: z.string().trim().max(40).default(""),
   image: url.refine((v) => v.length > 0, "Cover image is required"),
   mobileImage: url.optional().transform((v) => v || undefined),
   ctaLabel: z.string().trim().max(40).default(""),
   ctaHref: z.string().trim().max(300).default("/products"),
   active: z.boolean().default(true),
   sortOrder: z.coerce.number().int().default(0),
-  startsAt: optionalDate,
-  endsAt: optionalDate,
 });
 
 export const offerSchema = z.object({

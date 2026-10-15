@@ -28,12 +28,6 @@ export function offerIsLive(o: Offer, at = Date.now()) {
   if (o.endsAt && new Date(o.endsAt).getTime() + 86_400_000 <= at) return false; // end date is inclusive
   return true;
 }
-export function bannerIsLive(b: { active: boolean; startsAt?: string; endsAt?: string }, at = Date.now()) {
-  if (!b.active) return false;
-  if (b.startsAt && new Date(b.startsAt).getTime() > at) return false;
-  if (b.endsAt && new Date(b.endsAt).getTime() + 86_400_000 <= at) return false;
-  return true;
-}
 export async function evaluateCoupon(code: string, subtotal: number) {
   const offers = await db.list<Offer>("offers");
   const o = offers.find((x) => x.code && x.code === code.trim().toUpperCase());
@@ -103,6 +97,21 @@ export async function setOrderStatus(id: string, status: Order["status"]) {
     patch.stockRestored = false;
   }
   return (await db.update<Order>("orders", id, patch))!;
+}
+
+/** Customer self-cancel: only within 2 minutes of placement, while still pending/confirmed, verified by orderNo + phone. */
+const CANCEL_WINDOW_MS = 2 * 60_000;
+export async function cancelOrderByCustomer(orderNo: string, phone: string) {
+  const no = orderNo.trim().toUpperCase();
+  const ph = phone.trim();
+  if (!no || !ph) throw new ApiError(400, "Enter your order number and phone number");
+  const o = (await db.list<Order>("orders")).find((x) => x.orderNo === no && x.phone === ph);
+  if (!o) throw new ApiError(404, "No order found with these details");
+  if (o.status === "cancelled") throw new ApiError(400, "This order is already cancelled");
+  if (!["pending", "confirmed"].includes(o.status)) throw new ApiError(400, "This order can no longer be cancelled online. Please contact the store.");
+  const age = Date.now() - new Date(o.createdAt).getTime();
+  if (age > CANCEL_WINDOW_MS) throw new ApiError(400, "Cancellation window has closed (available for 2 minutes after placing the order). Please contact the store.");
+  return setOrderStatus(o.id, "cancelled");
 }
 
 export async function setPaymentStatus(id: string, paymentStatus: NonNullable<Order["paymentStatus"]>) {

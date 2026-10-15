@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { db, STORE_TAG } from "./db";
-import { getSettings as liveSettings, getZones as liveZones, offerIsLive, bannerIsLive } from "./services";
+import { getSettings as liveSettings, getZones as liveZones, offerIsLive } from "./services";
 import type { Banner, Category, Offer, Product } from "@/lib/types";
 
 /** Storefront reads are cached: pages no longer hit the database on every click.
@@ -9,7 +9,7 @@ import type { Banner, Category, Offer, Product } from "@/lib/types";
 const cached = <A extends unknown[], R>(fn: (...a: A) => Promise<R>, key: string) => unstable_cache(fn, [`store-${key}`], { tags: [STORE_TAG], revalidate: 60 });
 
 export const getCategories = cached(async () => (await db.list<Category>("categories")).filter((c) => c.active).sort((a, b) => a.sortOrder - b.sortOrder), "categories");
-export const getBanners = cached(async () => (await db.list<Banner>("banners")).filter((b) => bannerIsLive(b)).sort((a, b) => a.sortOrder - b.sortOrder), "banners");
+export const getBanners = cached(async () => (await db.list<Banner>("banners")).filter((b) => b.active).sort((a, b) => a.sortOrder - b.sortOrder), "banners");
 export const getOffers = cached(async () => (await db.list<Offer>("offers")).filter((o) => offerIsLive(o)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)), "offers");
 export const getActiveProducts = cached(async () => (await db.list<Product>("products")).filter((p) => p.active), "products");
 export const getSettings = cached(liveSettings, "settings");
