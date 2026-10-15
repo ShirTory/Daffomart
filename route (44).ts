@@ -1,17 +1,33 @@
-import { z } from "zod";
 import { db } from "@/server/db";
-import { ApiError, clientIp, handle, ok, rateLimit, readJson } from "@/server/http";
-import { gateway } from "@/server/payments";
-import type { Order } from "@/lib/types";
+import { ApiError, clientIp, handle, ok, rateLimit } from "@/server/http";
+import type { DeliveryZone, Order, Rider } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
-/** Customer → pay an existing online-payment order. Needs order no. + phone (same check as tracking). */
-export const POST = handle(async (req) => {
-  rateLimit(`pay:${clientIp(req)}`, 20, 10 * 60_000);
-  const { orderNo, phone } = z.object({ orderNo: z.string().min(3), phone: z.string().min(5) }).parse(await readJson(req));
-  const gw = gateway(); if (!gw) throw new ApiError(503, "Online payment is not available yet");
-  const o = (await db.list<Order>("orders")).find((x) => x.orderNo === orderNo.toUpperCase() && x.phone === phone);
-  if (!o || o.payment !== "online") throw new ApiError(404, "Order not found");
-  if (o.paymentStatus === "paid") throw new ApiError(409, "This order is already paid");
-  return ok(await gw.init(o, new URL(req.url).origin));
+const CANCEL_WINDOW_MS = 2 * 60_000;
+
+/** Public order tracking: needs BOTH order number and the phone used at checkout. */
+export const GET = handle(async (req) => {
+  rateLimit(`track:${clientIp(req)}`, 20, 10 * 60_000);
+  const u = new URL(req.url).searchParams; const no = (u.get("no") ?? "").trim().toUpperCase(), phone = (u.get("phone") ?? "").trim();
+  if (!no || !phone) throw new ApiError(400, "Enter your order number and phone number");
+  const o = (await db.list<Order>("orders")).find((x) => x.orderNo === no && x.phone === phone);
+  if (!o) throw new ApiError(404, "No order found with these details");
+  const withRider = ["picked_up", "on_the_way"].includes(o.status) && o.riderId; // the rider is only shown on the map once he has the parcel
+  const r = withRider ? await db.get<Rider>("riders", o.riderId!) : null;
+  const ageSec = r?.locAt ? Math.max(0, Math.round((Date.now() - new Date(r.locAt).getTime()) / 1000)) : null;
+  const riderLoc = r && typeof r.lat === "number" && typeof r.lng === "number" && ageSec !== null && ageSec < 900 ? { lat: r.lat, lng: r.lng, ageSec } : null;
+  const zone = o.zone ? await db.get<DeliveryZone>("zones", o.zone) : null;
+  const ageMs = Date.now() - new Date(o.createdAt).getTime();
+  const canCancel = ["pending", "confirmed"].includes(o.status) && ageMs <= CANCEL_WINDOW_MS;
+  const cancelEndsAt = canCancel ? new Date(new Date(o.createdAt).getTime() + CANCEL_WINDOW_MS).toISOString() : undefined;
+  return ok({
+    ...(typeof o.lat === "number" && typeof o.lng === "number" ? { dest: { lat: o.lat, lng: o.lng } } : {}),
+    ...(riderLoc ? { riderLoc } : {}),
+    orderNo: o.orderNo, status: o.status, createdAt: o.createdAt, updatedAt: o.updatedAt,
+    items: o.items, subtotal: o.subtotal, delivery: o.delivery, discount: o.discount, total: o.total,
+    payment: o.payment, paymentStatus: o.paymentStatus, zoneName: o.zoneName,
+    ...(zone?.eta ? { eta: zone.eta } : {}),
+    canCancel, ...(cancelEndsAt ? { cancelEndsAt } : {}),
+    ...(["assigned", "picked_up", "on_the_way"].includes(o.status) && o.riderName ? { riderName: o.riderName, riderPhone: o.riderPhone } : {}),
+  });
 });

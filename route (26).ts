@@ -1,9 +1,6 @@
+import { db } from "@/server/db";
 import { requireAdmin } from "@/server/auth";
 import { handle, ok } from "@/server/http";
-import { dashboardStats } from "@/server/services";
+import type { Rider } from "@/lib/types";
 export const dynamic = "force-dynamic";
-export const GET = handle(async (req) => {
-  await requireAdmin();
-  const days = Math.min(Math.max(Number(new URL(req.url).searchParams.get("days")) || 14, 7), 60);
-  return ok(await dashboardStats(days));
-});
+export const GET = handle(async () => { await requireAdmin(); return ok({ count: (await db.list<Rider>("riders")).filter((r) => r.status === "pending").length }); });

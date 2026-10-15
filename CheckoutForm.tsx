@@ -29,7 +29,7 @@ export default function CheckoutForm({ zones, minOrder = 0, payments, instructio
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null); const [locMsg, setLocMsg] = useState(""); const [locBusy, setLocBusy] = useState(false);
   useEffect(() => setMounted(true), []);
   useCartSync();
-  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { zone: (typeof window !== "undefined" && localStorage.getItem("daffomart-zone")) || zones[0]?.id || "", payment: (payments.find((p) => !p.disabled) ?? payments[0])?.id ?? "" } });
+  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { zone: zones[0]?.id ?? "", payment: (payments.find((p) => !p.disabled) ?? payments[0])?.id ?? "" } });
   const zone = watch("zone"); const pay = watch("payment"); const payOpt = payments.find((p) => p.id === pay);
   const subtotal = items.reduce((n, i) => n + i.price * i.qty, 0);
   const c = useCoupon(subtotal);
@@ -91,7 +91,7 @@ export default function CheckoutForm({ zones, minOrder = 0, payments, instructio
             {pin && <><iframe title="Your location" src={mapsEmbed(pin)} className="mt-3 h-40 w-full rounded-lg border-0" loading="lazy" /><button type="button" onClick={() => setPin(null)} className="mt-1 text-xs font-medium text-red-600 hover:underline">Remove location</button></>}</div></div>
         <div><label className="label">Delivery area</label>
           <div className="grid gap-3 sm:grid-cols-2">{zones.map((x) => (
-            <label key={x.id} className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border-2 p-3.5 text-sm transition ${zone === x.id ? "border-primary bg-primary-soft" : "border-gray-200"}`}><span className="flex items-center gap-2"><input type="radio" value={x.id} {...register("zone")} className="accent-primary" /><span><b>{x.name}</b>{x.eta && <span className="block text-xs text-gray-500">{x.eta}</span>}</span></span><span className="text-right text-gray-600">{x.charge === 0 ? "Free" : taka(x.charge)}{x.freeOver > 0 && <span className="block text-[11px] text-emerald-700">Free over {taka(x.freeOver)}</span>}</span></label>))}</div>
+            <label key={x.id} className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border-2 p-3.5 text-sm transition ${zone === x.id ? "border-primary bg-primary-soft" : "border-gray-200"}`}><span className="flex items-center gap-2"><input type="radio" value={x.id} {...register("zone")} className="accent-[#1E3A8A]" /><span><b>{x.name}</b>{x.eta && <span className="block text-xs text-gray-500">{x.eta}</span>}</span></span><span className="text-right text-gray-600">{x.charge === 0 ? "Free" : taka(x.charge)}{x.freeOver > 0 && <span className="block text-[11px] text-emerald-700">Free over {taka(x.freeOver)}</span>}</span></label>))}</div>
           <Err m={errors.zone?.message} />{zones.length === 0 && <p className="mt-1 text-xs text-red-600">Delivery is not available right now. Please contact us.</p>}</div>
         {hasRx && <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-800"><b>℞ Prescription medicine in your cart.</b> Our pharmacist will call you to confirm your prescription before delivery. Please keep it ready.</div>}
         <div><label className="label">Payment method</label>

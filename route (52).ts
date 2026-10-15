@@ -1,5 +1,4 @@
 import { handle, ok } from "@/server/http";
-import { requireRider } from "@/server/riderAuth";
-import { riderOrders } from "@/server/services";
+import { publicRider, requireRider } from "@/server/riderAuth";
 export const dynamic = "force-dynamic";
-export const GET = handle(async () => ok(await riderOrders((await requireRider()).id)));
+export const GET = handle(async () => ok(publicRider(await requireRider())));

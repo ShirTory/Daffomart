@@ -1,26 +1,17 @@
-import { db } from "@/server/db";
-import { requireAdmin } from "@/server/auth";
 import { clientIp, handle, ok, rateLimit, readJson } from "@/server/http";
-import { createOrder } from "@/server/services";
-import { orderCreateSchema } from "@/lib/validators";
-import type { Order } from "@/lib/types";
+import { cancelOrderByCustomer } from "@/server/services";
+import { z } from "zod";
 export const dynamic = "force-dynamic";
 
-/** Admin: GET /api/orders?status=&q= */
-export const GET = handle(async (req) => {
-  await requireAdmin();
-  const u = new URL(req.url).searchParams; const status = u.get("status"), q = (u.get("q") ?? "").toLowerCase().trim();
-  let list = await db.list<Order>("orders");
-  if (status) list = list.filter((o) => o.status === status);
-  if (q) list = list.filter((o) => o.orderNo.toLowerCase().includes(q) || o.name.toLowerCase().includes(q) || o.phone.includes(q));
-  list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  return ok(list);
+const body = z.object({
+  orderNo: z.string().trim().min(3),
+  phone: z.string().trim().min(10),
 });
 
-/** Public checkout. Prices, stock, delivery and coupon are all re-computed on the server. */
+/** Public: customer cancels their own order within 2 minutes (orderNo + phone required). */
 export const POST = handle(async (req) => {
-  rateLimit(`order:${clientIp(req)}`, 10, 10 * 60_000);
-  const input = orderCreateSchema.parse(await readJson(req));
-  const o = await createOrder(input);
-  return ok({ orderNo: o.orderNo, total: o.total, id: o.id }, 201);
+  rateLimit(`cancel:${clientIp(req)}`, 8, 10 * 60_000);
+  const { orderNo, phone } = body.parse(await readJson(req));
+  const o = await cancelOrderByCustomer(orderNo, phone);
+  return ok({ orderNo: o.orderNo, status: o.status });
 });

@@ -1,69 +1,56 @@
 "use client";
-import { useState } from "react";
-import { api, ApiClientError } from "@/lib/api";
-import { Empty, ErrorBox, Field, ImageUpload, Icon, Modal, PageHeader, PageLoader, Spinner, StatusBadge, Toggle, useConfirm, useList, useToast } from "@/components/admin/ui";
-import { fmtDate, taka } from "@/lib/format";
-import type { Offer } from "@/lib/types";
+import { useEffect, useMemo } from "react";
+import { Empty, ErrorBox, PageHeader, PageLoader, StatusBadge, useList } from "@/components/admin/ui";
+import LiveMap, { type Pin } from "@/components/maps/LiveMap";
+import { hasPin } from "@/lib/maps";
+import { statusLabel } from "@/lib/format";
+import { riderApproved } from "@/lib/rider";
+import type { Order, Rider } from "@/lib/types";
 
-type Form = { title: string; description: string; badge: string; image?: string; code: string; discountType: "percent" | "flat"; discountValue: string; minOrder: string; startsAt: string; endsAt: string; active: boolean };
-const blank = (): Form => ({ title: "", description: "", badge: "", code: "", discountType: "percent", discountValue: "10", minOrder: "0", startsAt: "", endsAt: "", active: true });
-const state = (o: Offer) => { if (!o.active) return "inactive"; const n = Date.now(); if (o.startsAt && new Date(o.startsAt).getTime() > n) return "scheduled"; if (o.endsAt && new Date(o.endsAt).getTime() + 86400000 <= n) return "expired"; return "live"; };
+const LIVE = new Set(["assigned", "picked_up", "on_the_way"]);
+const age = (iso?: string) => (iso ? Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000)) : null);
+const ago = (s: number) => (s < 15 ? "just now" : s < 90 ? `${s}s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : "a while ago");
 
-export default function OffersPage() {
-  const toast = useToast(); const { confirm, node } = useConfirm();
-  const { data, setData, loading, error, reload } = useList<Offer[]>("/api/offers");
-  const [edit, setEdit] = useState<{ id?: string; f: Form } | null>(null); const [busy, setBusy] = useState(false); const [errs, setErrs] = useState<Record<string, string>>({});
-  const open = (o?: Offer) => { setErrs({}); setEdit(o ? { id: o.id, f: { title: o.title, description: o.description, badge: o.badge, image: o.image, code: o.code ?? "", discountType: o.discountType, discountValue: String(o.discountValue), minOrder: String(o.minOrder), startsAt: o.startsAt ?? "", endsAt: o.endsAt ?? "", active: o.active } } : { f: blank() }); };
-  const set = <K extends keyof Form>(k: K, v: Form[K]) => setEdit((e) => (e ? { ...e, f: { ...e.f, [k]: v } } : e));
-  const save = async () => {
-    if (!edit) return; setBusy(true); setErrs({});
-    try {
-      const s = await api<Offer>(edit.id ? `/api/offers/${edit.id}` : "/api/offers", { method: edit.id ? "PUT" : "POST", body: edit.f });
-      setData((d) => (edit.id ? d!.map((x) => (x.id === s.id ? s : x)) : [s, ...(d ?? [])]));
-      toast("Offer saved"); setEdit(null);
-    } catch (e: any) { if (e instanceof ApiClientError) setErrs(e.fields); toast(e.message, "err"); } finally { setBusy(false); }
-  };
-  const del = async (o: Offer) => { if (!(await confirm(`Delete offer "${o.title}"?`))) return; try { await api(`/api/offers/${o.id}`, { method: "DELETE" }); setData((d) => d!.filter((x) => x.id !== o.id)); toast("Offer deleted"); } catch (e: any) { toast(e.message, "err"); } };
-  const f = edit?.f;
+export default function LiveMapPage() {
+  const riders = useList<Rider[]>("/api/riders"); const orders = useList<Order[]>("/api/orders");
+  useEffect(() => { const t = setInterval(() => { riders.reload(); orders.reload(); }, 10_000); return () => clearInterval(t); }, [riders.reload, orders.reload]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { pins, rows, jobs } = useMemo(() => {
+    const act = (orders.data ?? []).filter((o) => LIVE.has(o.status));
+    const rows = (riders.data ?? []).filter((r) => r.active && riderApproved(r)).map((r) => {
+      const a = age(r.locAt); const fresh = a !== null && a < 900 && typeof r.lat === "number";
+      return { r, a, fresh, jobs: act.filter((o) => o.riderId === r.id) };
+    }).sort((x, y) => Number(y.fresh) - Number(x.fresh) || y.jobs.length - x.jobs.length);
+    const pins: Pin[] = [
+      ...rows.filter((x) => x.fresh).map((x) => ({ id: `r${x.r.id}`, kind: "rider" as const, lat: x.r.lat!, lng: x.r.lng!, label: `${x.r.name} (${x.jobs.length} active)` })),
+      ...act.filter((o) => hasPin(o)).map((o) => ({ id: `o${o.id}`, kind: "home" as const, lat: o.lat!, lng: o.lng!, label: `${o.orderNo} · ${o.name}` })),
+    ];
+    return { pins, rows, jobs: act };
+  }, [riders.data, orders.data]);
+
+  if (riders.loading || orders.loading) return <PageLoader />;
+  if (riders.error || orders.error) return <ErrorBox msg={riders.error || orders.error} retry={() => { riders.reload(); orders.reload(); }} />;
   return (
     <>
-      <PageHeader title="Offers & Coupons" subtitle="Promotions shown on the home page. Add a coupon code to give customers a discount at checkout."><button className="btn-primary" onClick={() => open()}><Icon name="plus" className="h-4 w-4" />Add offer</button></PageHeader>
-      {loading ? <PageLoader /> : error ? <ErrorBox msg={error} retry={reload} /> : !data?.length ? <div className="card"><Empty icon="offers" title="No offers yet" hint="Create a promotion with an image and an optional coupon code." action={<button className="btn-primary" onClick={() => open()}>Add offer</button>} /></div> : (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {data.map((o) => (
-            <div key={o.id} className="card flex flex-col overflow-hidden">
-              <div className="relative aspect-[16/9] bg-gradient-to-br from-primary to-primary-dark">{o.image && /* eslint-disable-next-line @next/next/no-img-element */ <img src={o.image} alt="" className="h-full w-full object-cover" />}
-                {o.badge && <span className="absolute left-3 top-3 rounded bg-accent px-2 py-1 text-xs font-bold text-white">{o.badge}</span>}
-                {!o.image && <div className="absolute inset-0 flex items-center justify-center text-4xl font-extrabold text-white/90">{o.discountType === "percent" ? `${o.discountValue}% OFF` : `${taka(o.discountValue)} OFF`}</div>}</div>
-              <div className="flex flex-1 flex-col p-4">
-                <div className="flex items-start justify-between gap-2"><h3 className="font-semibold">{o.title}</h3><StatusBadge status={state(o)} /></div>
-                {o.description && <p className="mt-1 line-clamp-2 text-sm text-gray-500">{o.description}</p>}
-                <div className="mt-3 space-y-1 text-xs text-gray-500">
-                  {o.code && <p>Code: <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono font-bold text-gray-800">{o.code}</span> · {o.discountType === "percent" ? `${o.discountValue}%` : taka(o.discountValue)} off{o.minOrder > 0 && ` over ${taka(o.minOrder)}`}</p>}
-                  {(o.startsAt || o.endsAt) && <p>{fmtDate(o.startsAt)} → {fmtDate(o.endsAt)}</p>}</div>
-                <div className="mt-auto flex justify-end pt-3"><button className="btn-ghost btn-sm" onClick={() => open(o)}><Icon name="edit" className="h-4 w-4" />Edit</button><button className="btn-ghost btn-sm text-red-600" onClick={() => del(o)}><Icon name="trash" className="h-4 w-4" /></button></div>
-              </div>
+      <PageHeader title="Live map" subtitle="Riders who are sharing their location, and the customers they are delivering to · refreshes every 10 seconds" />
+      <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
+        <div className="card p-3">
+          {pins.length ? <LiveMap pins={pins} height={540} /> : <Empty icon="rider" title="Nothing to show yet" hint="Riders appear here when they switch on “Share live location” in the rider app. Customers appear when an order with a GPS pin is assigned." />}
+          <p className="mt-2 px-1 text-xs text-gray-500">🛵 rider · 🏠 customer drop-off (customers who shared their location at checkout)</p>
+        </div>
+        <div className="card divide-y">
+          <p className="p-4 text-sm font-bold">Riders ({rows.length})</p>
+          {!rows.length && <p className="p-4 text-sm text-gray-500">No active riders. Add them in Riders.</p>}
+          {rows.map(({ r, a, fresh, jobs: j }) => (
+            <div key={r.id} className="space-y-1 p-4 text-sm">
+              <div className="flex items-center justify-between gap-2"><b className="truncate">{r.name}</b><StatusBadge status={fresh ? "active" : "inactive"} label={fresh ? "Live" : a !== null ? "Last seen " + ago(a) : "Offline"} /></div>
+              <a href={`tel:${r.phone}`} className="text-xs text-primary">{r.phone}</a>
+              {j.length ? j.map((o) => <p key={o.id} className="text-xs text-gray-600">{o.orderNo} · {o.name} · <span className="font-medium">{statusLabel(o.status)}</span></p>) : <p className="text-xs text-gray-400">No active delivery</p>}
+              {j.length > 0 && !fresh && <p className="text-xs font-medium text-amber-700">⚠ Delivering but not sharing location</p>}
             </div>))}
-        </div>)}
-      <Modal open={!!edit} onClose={() => !busy && setEdit(null)} title={edit?.id ? "Edit offer" : "Add offer"} wide
-        footer={<><button className="btn-outline" onClick={() => setEdit(null)}>Cancel</button><button className="btn-primary" onClick={save} disabled={busy}>{busy && <Spinner className="h-4 w-4" />}Save offer</button></>}>
-        {f && <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-[220px_1fr]">
-            <ImageUpload kind="offer" label="Offer image (optional)" aspect="aspect-[16/9]" value={f.image} onChange={(v) => set("image", v)} />
-            <div className="space-y-4"><Field label="Title" error={errs.title}><input className="input" value={f.title} onChange={(e) => set("title", e.target.value)} placeholder="Weekend Fresh Sale" /></Field>
-              <Field label="Description"><textarea className="input" rows={2} value={f.description} onChange={(e) => set("description", e.target.value)} /></Field>
-              <Field label="Badge text" hint="Small label, e.g. HOT DEAL"><input className="input" value={f.badge} onChange={(e) => set("badge", e.target.value)} /></Field></div></div>
-          <div className="rounded-xl border bg-gray-50 p-4"><p className="mb-3 text-sm font-semibold">Coupon discount <span className="font-normal text-gray-500">(optional — leave code empty for a display-only offer)</span></p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Coupon code" error={errs.code}><input className="input font-mono uppercase" value={f.code} onChange={(e) => set("code", e.target.value.toUpperCase())} placeholder="SAVE10" /></Field>
-              <Field label="Minimum order (৳)"><input className="input" type="number" min="0" value={f.minOrder} onChange={(e) => set("minOrder", e.target.value)} /></Field>
-              <Field label="Discount type"><select className="input" value={f.discountType} onChange={(e) => set("discountType", e.target.value as any)}><option value="percent">Percentage (%)</option><option value="flat">Fixed amount (৳)</option></select></Field>
-              <Field label="Discount value" error={errs.discountValue}><input className="input" type="number" min="0" value={f.discountValue} onChange={(e) => set("discountValue", e.target.value)} /></Field></div></div>
-          <div className="grid gap-4 sm:grid-cols-2"><Field label="Starts on"><input className="input" type="date" value={f.startsAt} onChange={(e) => set("startsAt", e.target.value)} /></Field><Field label="Ends on (inclusive)"><input className="input" type="date" value={f.endsAt} onChange={(e) => set("endsAt", e.target.value)} /></Field></div>
-          <Toggle checked={f.active} onChange={(v) => set("active", v)} label="Active" />
-        </div>}
-      </Modal>
-      {node}
+          {jobs.length > 0 && <p className="p-4 text-xs text-gray-500">{jobs.length} delivery(ies) in progress · {jobs.filter((o) => !hasPin(o)).length} without a customer GPS pin</p>}
+        </div>
+      </div>
     </>
   );
 }

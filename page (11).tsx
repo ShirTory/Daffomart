@@ -1,47 +1,51 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api, ApiClientError } from "@/lib/api";
-import { ErrorBox, Field, Icon, ImageUpload, PageHeader, PageLoader, Spinner, Toggle, useList, useToast } from "@/components/admin/ui";
-import type { Feature, StoreSettings } from "@/lib/types";
+import { Empty, ErrorBox, Field, ImageUpload, Icon, Modal, PageHeader, PageLoader, Spinner, StatusBadge, Thumb, Toggle, useConfirm, useList, useToast } from "@/components/admin/ui";
+import type { Category } from "@/lib/types";
 
-type F = Pick<StoreSettings, "logo" | "heroTitle" | "heroSubtitle" | "heroCta" | "features" | "showMedicine" | "medicineTitle" | "medicineSubtitle" | "medicineNotice" | "footerText">;
-export default function ContentPage() {
-  const toast = useToast(); const { data, loading, error, reload } = useList<StoreSettings>("/api/settings");
-  const [f, setF] = useState<F | null>(null); const [busy, setBusy] = useState(false); const [errs, setErrs] = useState<Record<string, string>>({});
-  useEffect(() => { if (data) setF({ logo: data.logo, heroTitle: data.heroTitle, heroSubtitle: data.heroSubtitle, heroCta: data.heroCta, features: data.features, showMedicine: data.showMedicine, medicineTitle: data.medicineTitle, medicineSubtitle: data.medicineSubtitle, medicineNotice: data.medicineNotice, footerText: data.footerText }); }, [data]);
-  if (loading) return <PageLoader />; if (error || !f) return <ErrorBox msg={error || "Failed to load"} retry={reload} />;
-  const set = <K extends keyof F>(k: K, v: F[K]) => setF({ ...f, [k]: v });
-  const txt = (k: keyof F) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => set(k, e.target.value as never);
-  const feat = (i: number, patch: Partial<Feature>) => set("features", f.features.map((x, k) => (k === i ? { ...x, ...patch } : x)));
+type Form = { name: string; emoji: string; image?: string; kind: "grocery" | "medicine"; active: boolean; sortOrder: string };
+export default function CategoriesPage() {
+  const toast = useToast(); const { confirm, node } = useConfirm();
+  const { data, setData, loading, error, reload } = useList<Category[]>("/api/categories");
+  const [edit, setEdit] = useState<{ id?: string; f: Form } | null>(null); const [busy, setBusy] = useState(false); const [errs, setErrs] = useState<Record<string, string>>({});
+  const open = (c?: Category) => { setErrs({}); setEdit(c ? { id: c.id, f: { name: c.name, emoji: c.emoji, image: c.image, kind: c.kind ?? "grocery", active: c.active, sortOrder: String(c.sortOrder) } } : { f: { name: "", emoji: "🛍️", kind: "grocery", active: true, sortOrder: String((data?.length ?? 0) + 1) } }); };
+  const set = <K extends keyof Form>(k: K, v: Form[K]) => setEdit((e) => (e ? { ...e, f: { ...e.f, [k]: v } } : e));
   const save = async () => {
-    setBusy(true); setErrs({});
-    try { await api("/api/settings", { method: "PUT", body: f }); toast("Website content saved"); } catch (x: any) { if (x instanceof ApiClientError) setErrs(x.fields); toast(x.message, "err"); } finally { setBusy(false); }
+    if (!edit) return; setBusy(true); setErrs({});
+    try {
+      const s = await api<Category>(edit.id ? `/api/categories/${edit.id}` : "/api/categories", { method: edit.id ? "PUT" : "POST", body: edit.f });
+      setData((d) => { const l = edit.id ? d!.map((x) => (x.id === s.id ? s : x)) : [...(d ?? []), s]; return l.sort((a, b) => a.sortOrder - b.sortOrder); });
+      toast("Category saved"); setEdit(null);
+    } catch (e: any) { if (e instanceof ApiClientError) setErrs(e.fields); toast(e.message, "err"); } finally { setBusy(false); }
+  };
+  const del = async (c: Category) => {
+    if (!(await confirm(`Delete category "${c.name}"?`))) return;
+    try { await api(`/api/categories/${c.id}`, { method: "DELETE" }); setData((d) => d!.filter((x) => x.id !== c.id)); toast("Category deleted"); } catch (e: any) { toast(e.message, "err"); }
   };
   return (
     <>
-      <PageHeader title="Website content" subtitle="Edit the texts, logo and sections customers see on your website"><a href="/" target="_blank" className="btn-outline"><Icon name="external" className="h-4 w-4" />Preview store</a><button className="btn-primary" onClick={save} disabled={busy}>{busy && <Spinner className="h-4 w-4" />}Save changes</button></PageHeader>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="card space-y-4 p-5"><h2 className="font-bold">Logo</h2>
-          <ImageUpload kind="general" label="Store logo (optional)" value={f.logo || undefined} onChange={(v) => set("logo", v ?? "")} aspect="aspect-[4/1]" rounded="rounded-lg" hint="Wide logo on a transparent or white background. Leave empty to use the default DaffoMart logo." />
-          <Field label="Footer description" hint="Short text under the logo in the footer. Empty = use tagline."><textarea className="input" rows={2} value={f.footerText} onChange={txt("footerText")} /></Field>
-        </section>
-        <section className="card space-y-4 p-5"><h2 className="font-bold">Home page banner text</h2>
-          <p className="-mt-2 text-xs text-gray-500">Shown when there are no cover images. Manage sliders in “Cover Images”.</p>
-          <Field label="Heading" error={errs.heroTitle} hint="Press Enter for a new line"><textarea className="input" rows={2} value={f.heroTitle} onChange={txt("heroTitle")} /></Field>
-          <Field label="Sub-heading"><input className="input" value={f.heroSubtitle} onChange={txt("heroSubtitle")} /></Field>
-          <Field label="Button text"><input className="input" value={f.heroCta} onChange={txt("heroCta")} placeholder="Shop now" /></Field>
-        </section>
-        <section className="card space-y-4 p-5 lg:col-span-2"><div className="flex items-center justify-between"><h2 className="font-bold">💊 Medicine section</h2><Toggle checked={f.showMedicine} onChange={(v) => set("showMedicine", v)} label="Show on website" /></div>
-          <p className="-mt-2 text-xs text-gray-500">Create categories with section type “Medicine” in Categories, then add medicine products — they appear here, highlighted in green, and on the /medicine page.</p>
-          <div className="grid gap-4 sm:grid-cols-2"><Field label="Section title"><input className="input" value={f.medicineTitle} onChange={txt("medicineTitle")} /></Field><Field label="Section sub-title"><input className="input" value={f.medicineSubtitle} onChange={txt("medicineSubtitle")} /></Field>
-            <Field label="Notice (e.g. prescription rule)" className="sm:col-span-2"><textarea className="input" rows={2} value={f.medicineNotice} onChange={txt("medicineNotice")} /></Field></div>
-        </section>
-        <section className="card space-y-4 p-5 lg:col-span-2"><div className="flex items-center justify-between"><h2 className="font-bold">Highlights strip</h2>{f.features.length < 6 && <button className="btn-outline btn-sm" onClick={() => set("features", [...f.features, { icon: "⭐", title: "", text: "" }])}><Icon name="plus" className="h-4 w-4" />Add</button>}</div>
-          <div className="space-y-3">{f.features.map((x, i) => (
-            <div key={i} className="grid gap-3 sm:grid-cols-[80px_1fr_1fr_auto]"><input className="input text-center text-lg" value={x.icon} maxLength={8} onChange={(e) => feat(i, { icon: e.target.value })} aria-label="Emoji" /><input className="input" placeholder="Title" value={x.title} onChange={(e) => feat(i, { title: e.target.value })} /><input className="input" placeholder="Short text" value={x.text} onChange={(e) => feat(i, { text: e.target.value })} />
-              <button className="btn-ghost btn-sm text-red-600" onClick={() => set("features", f.features.filter((_, k) => k !== i))} aria-label="Remove"><Icon name="trash" className="h-4 w-4" /></button></div>))}</div>
-        </section>
-      </div>
+      <PageHeader title="Categories" subtitle="Organise your products into shop sections"><button className="btn-primary" onClick={() => open()}><Icon name="plus" className="h-4 w-4" />Add category</button></PageHeader>
+      {loading ? <PageLoader /> : error ? <ErrorBox msg={error} retry={reload} /> : !data?.length ? <div className="card"><Empty icon="categories" title="No categories yet" action={<button className="btn-primary" onClick={() => open()}>Add category</button>} /></div> : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {data.map((c) => (
+            <div key={c.id} className="card flex items-center gap-4 p-4">
+              <Thumb src={c.image} emoji={c.emoji} className="h-16 w-16 text-3xl" />
+              <div className="min-w-0 flex-1"><p className="truncate font-semibold">{c.name}</p><p className="text-xs text-gray-500">Order #{c.sortOrder}</p><div className="mt-1"><StatusBadge status={c.active ? "active" : "inactive"} label={c.active ? "Visible" : "Hidden"} />{c.kind === "medicine" && <span className="badge ml-1 bg-emerald-100 text-emerald-800">💊 Medicine</span>}</div></div>
+              <div className="flex flex-col gap-1"><button className="btn-ghost btn-sm" onClick={() => open(c)} aria-label="Edit"><Icon name="edit" className="h-4 w-4" /></button><button className="btn-ghost btn-sm text-red-600" onClick={() => del(c)} aria-label="Delete"><Icon name="trash" className="h-4 w-4" /></button></div>
+            </div>))}
+        </div>)}
+      <Modal open={!!edit} onClose={() => !busy && setEdit(null)} title={edit?.id ? "Edit category" : "Add category"}
+        footer={<><button className="btn-outline" onClick={() => setEdit(null)}>Cancel</button><button className="btn-primary" onClick={save} disabled={busy}>{busy && <Spinner className="h-4 w-4" />}Save</button></>}>
+        {edit && <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-[160px_1fr]"><ImageUpload kind="category" label="Image" value={edit.f.image} onChange={(v) => set("image", v)} />
+            <div className="space-y-4"><Field label="Name" error={errs.name}><input className="input" value={edit.f.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Vegetables" /></Field>
+              <div className="grid grid-cols-2 gap-3"><Field label="Emoji" hint="Fallback icon"><input className="input" value={edit.f.emoji} maxLength={8} onChange={(e) => set("emoji", e.target.value)} /></Field><Field label="Sort order"><input className="input" type="number" value={edit.f.sortOrder} onChange={(e) => set("sortOrder", e.target.value)} /></Field></div></div></div>
+          <Field label="Section type" hint="Medicine categories appear in the highlighted Medicine section of the website."><select className="input" value={edit.f.kind} onChange={(e) => set("kind", e.target.value as Form["kind"])}><option value="grocery">Grocery / general shop</option><option value="medicine">💊 Medicine / healthcare</option></select></Field>
+          <Toggle checked={edit.f.active} onChange={(v) => set("active", v)} label="Visible in store" />
+        </div>}
+      </Modal>
+      {node}
     </>
   );
 }

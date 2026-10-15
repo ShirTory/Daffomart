@@ -1,52 +1,55 @@
 "use client";
 import { useState } from "react";
 import { api, ApiClientError } from "@/lib/api";
-import { Empty, ErrorBox, Field, Icon, Modal, PageHeader, PageLoader, Spinner, StatusBadge, Toggle, useConfirm, useList, useToast } from "@/components/admin/ui";
-import { taka } from "@/lib/format";
-import type { DeliveryZone } from "@/lib/types";
+import { Empty, ErrorBox, Field, ImageUpload, Icon, Modal, PageHeader, PageLoader, Spinner, StatusBadge, Toggle, useConfirm, useList, useToast } from "@/components/admin/ui";
+import type { Banner } from "@/lib/types";
 
-type Form = { name: string; charge: string; freeOver: string; eta: string; sortOrder: string; active: boolean };
-export default function DeliveryPage() {
+type Form = { title: string; subtitle: string; image?: string; mobileImage?: string; ctaLabel: string; ctaHref: string; active: boolean; sortOrder: string };
+export default function CoversPage() {
   const toast = useToast(); const { confirm, node } = useConfirm();
-  const { data, setData, loading, error, reload } = useList<DeliveryZone[]>("/api/zones");
+  const { data, setData, loading, error, reload } = useList<Banner[]>("/api/banners");
   const [edit, setEdit] = useState<{ id?: string; f: Form } | null>(null); const [busy, setBusy] = useState(false); const [errs, setErrs] = useState<Record<string, string>>({});
-  const open = (z?: DeliveryZone) => { setErrs({}); setEdit(z ? { id: z.id, f: { name: z.name, charge: String(z.charge), freeOver: String(z.freeOver ?? 0), eta: z.eta ?? "", sortOrder: String(z.sortOrder), active: z.active } } : { f: { name: "", charge: "60", freeOver: "0", eta: "", sortOrder: String((data?.length ?? 0) + 1), active: true } }); };
+  const open = (b?: Banner) => { setErrs({}); setEdit(b ? { id: b.id, f: { title: b.title, subtitle: b.subtitle, image: b.image, mobileImage: b.mobileImage, ctaLabel: b.ctaLabel, ctaHref: b.ctaHref, active: b.active, sortOrder: String(b.sortOrder) } } : { f: { title: "", subtitle: "", ctaLabel: "Shop now", ctaHref: "/products", active: true, sortOrder: String((data?.length ?? 0) + 1) } }); };
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setEdit((e) => (e ? { ...e, f: { ...e.f, [k]: v } } : e));
-  const sorted = (l: DeliveryZone[]) => [...l].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   const save = async () => {
     if (!edit) return; setBusy(true); setErrs({});
     try {
-      const s = await api<DeliveryZone>(edit.id ? `/api/zones/${edit.id}` : "/api/zones", { method: edit.id ? "PUT" : "POST", body: edit.f });
-      setData((d) => sorted(edit.id ? d!.map((x) => (x.id === s.id ? s : x)) : [...(d ?? []), s])); toast("Delivery area saved"); setEdit(null);
+      const s = await api<Banner>(edit.id ? `/api/banners/${edit.id}` : "/api/banners", { method: edit.id ? "PUT" : "POST", body: { ...edit.f, image: edit.f.image ?? "" } });
+      setData((d) => (edit.id ? d!.map((x) => (x.id === s.id ? s : x)) : [...(d ?? []), s]).sort((a, b) => a.sortOrder - b.sortOrder));
+      toast("Cover image saved"); setEdit(null);
     } catch (e: any) { if (e instanceof ApiClientError) setErrs(e.fields); toast(e.message, "err"); } finally { setBusy(false); }
   };
-  const del = async (z: DeliveryZone) => {
-    if (!(await confirm(`Delete delivery area "${z.name}"? Old orders keep their saved area name.`))) return;
-    try { await api(`/api/zones/${z.id}`, { method: "DELETE" }); setData((d) => d!.filter((x) => x.id !== z.id)); toast("Delivery area deleted"); } catch (e: any) { toast(e.message, "err"); }
-  };
-  const quick = async (z: DeliveryZone, active: boolean) => {
-    try { const s = await api<DeliveryZone>(`/api/zones/${z.id}`, { method: "PUT", body: { ...z, active } }); setData((d) => d!.map((x) => (x.id === s.id ? s : x))); } catch (e: any) { toast(e.message, "err"); }
-  };
+  const del = async (b: Banner) => { if (!(await confirm("Delete this cover image?"))) return; try { await api(`/api/banners/${b.id}`, { method: "DELETE" }); setData((d) => d!.filter((x) => x.id !== b.id)); toast("Deleted"); } catch (e: any) { toast(e.message, "err"); } };
+  const flip = async (b: Banner) => { try { const s = await api<Banner>(`/api/banners/${b.id}`, { method: "PUT", body: { ...b, active: !b.active } }); setData((d) => d!.map((x) => (x.id === s.id ? s : x))); } catch (e: any) { toast(e.message, "err"); } };
+
   return (
     <>
-      <PageHeader title="Delivery areas & charges" subtitle="Customers pick one of these areas at checkout. Charges are applied automatically."><button className="btn-primary" onClick={() => open()}><Icon name="plus" className="h-4 w-4" />Add area</button></PageHeader>
-      {loading ? <PageLoader /> : error ? <ErrorBox msg={error} retry={reload} /> : !data?.length ? <div className="card"><Empty icon="delivery" title="No delivery areas yet" hint="Add at least one area, otherwise customers cannot place orders." action={<button className="btn-primary" onClick={() => open()}>Add area</button>} /></div> : (
-        <div className="card overflow-hidden"><div className="scroll-thin overflow-x-auto"><table className="w-full min-w-[640px]">
-          <thead className="bg-gray-50"><tr><th className="th">Area</th><th className="th">Delivery charge</th><th className="th">Free delivery over</th><th className="th">Delivery time</th><th className="th">Active</th><th className="th text-right">Actions</th></tr></thead>
-          <tbody className="divide-y">{data.map((z) => (
-            <tr key={z.id} className="hover:bg-gray-50"><td className="td font-semibold">{z.name}</td><td className="td">{taka(z.charge)}</td><td className="td text-gray-600">{z.freeOver > 0 ? taka(z.freeOver) : "—"}</td><td className="td text-gray-600">{z.eta || "—"}</td>
-              <td className="td"><Toggle checked={z.active} onChange={(v) => quick(z, v)} /></td>
-              <td className="td text-right"><button className="btn-ghost btn-sm" onClick={() => open(z)} aria-label="Edit"><Icon name="edit" className="h-4 w-4" /></button><button className="btn-ghost btn-sm text-red-600" onClick={() => del(z)} aria-label="Delete"><Icon name="trash" className="h-4 w-4" /></button></td></tr>))}</tbody></table></div></div>)}
-      <p className="mt-3 text-xs text-gray-500">Tip: add areas like “Savar”, “Mirpur”, “Chattogram” with their own charge. Hidden (inactive) areas are not shown to customers.</p>
-      <Modal open={!!edit} onClose={() => !busy && setEdit(null)} title={edit?.id ? "Edit delivery area" : "Add delivery area"}
+      <PageHeader title="Cover Images" subtitle="Slides shown at the top of your home page. If none are active, a default banner is shown."><button className="btn-primary" onClick={() => open()}><Icon name="plus" className="h-4 w-4" />Add cover image</button></PageHeader>
+      <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">Recommended size: <b>1920 × 600 px</b> (wide). Keep important text near the centre. You can add a separate square-ish image for phones.</div>
+      {loading ? <PageLoader /> : error ? <ErrorBox msg={error} retry={reload} /> : !data?.length ? <div className="card"><Empty icon="covers" title="No cover images yet" hint="Upload a wide image to show a slider on your home page." action={<button className="btn-primary" onClick={() => open()}>Add cover image</button>} /></div> : (
+        <div className="grid gap-5 lg:grid-cols-2">
+          {data.map((b) => (
+            <div key={b.id} className="card overflow-hidden">
+              <div className="relative aspect-[16/5] bg-gray-100">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={b.image} alt="" className="h-full w-full object-cover" />
+                {(b.title || b.subtitle) && <div className="absolute inset-0 flex flex-col justify-center bg-gradient-to-r from-black/55 to-transparent p-5 text-white"><p className="text-lg font-bold">{b.title}</p><p className="text-sm text-white/85">{b.subtitle}</p></div>}</div>
+              <div className="flex items-center justify-between gap-3 p-4"><div className="flex items-center gap-3"><Toggle checked={b.active} onChange={() => flip(b)} /><StatusBadge status={b.active ? "active" : "inactive"} label={b.active ? "Showing" : "Hidden"} /><span className="text-xs text-gray-400">Order #{b.sortOrder}</span></div>
+                <div><button className="btn-ghost btn-sm" onClick={() => open(b)}><Icon name="edit" className="h-4 w-4" />Edit</button><button className="btn-ghost btn-sm text-red-600" onClick={() => del(b)}><Icon name="trash" className="h-4 w-4" /></button></div></div>
+            </div>))}
+        </div>)}
+      <Modal open={!!edit} onClose={() => !busy && setEdit(null)} title={edit?.id ? "Edit cover image" : "Add cover image"} wide
         footer={<><button className="btn-outline" onClick={() => setEdit(null)}>Cancel</button><button className="btn-primary" onClick={save} disabled={busy}>{busy && <Spinner className="h-4 w-4" />}Save</button></>}>
-        {edit && <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Area name" error={errs.name} className="sm:col-span-2"><input className="input" value={edit.f.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Inside Dhaka" /></Field>
-          <Field label="Delivery charge (৳)" error={errs.charge}><input className="input" type="number" min="0" value={edit.f.charge} onChange={(e) => set("charge", e.target.value)} /></Field>
-          <Field label="Free delivery over (৳)" hint="0 = never free"><input className="input" type="number" min="0" value={edit.f.freeOver} onChange={(e) => set("freeOver", e.target.value)} /></Field>
-          <Field label="Delivery time" hint="Shown to customers, e.g. Same day"><input className="input" value={edit.f.eta} onChange={(e) => set("eta", e.target.value)} /></Field>
-          <Field label="Sort order"><input className="input" type="number" value={edit.f.sortOrder} onChange={(e) => set("sortOrder", e.target.value)} /></Field>
-          <div className="sm:col-span-2"><Toggle checked={edit.f.active} onChange={(v) => set("active", v)} label="Available to customers" /></div>
+        {edit && <div className="space-y-4">
+          <ImageUpload kind="banner" label="Cover image (desktop)" aspect="aspect-[16/5]" value={edit.f.image} onChange={(v) => set("image", v)} hint="Wide image, 1920 × 600 px recommended" />
+          {errs.image && <p className="text-xs text-red-600">{errs.image}</p>}
+          <div className="max-w-xs"><ImageUpload kind="banner" label="Mobile image (optional)" aspect="aspect-[4/3]" value={edit.f.mobileImage} onChange={(v) => set("mobileImage", v)} hint="e.g. 1000 × 750 px" /></div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Headline (optional)"><input className="input" value={edit.f.title} onChange={(e) => set("title", e.target.value)} placeholder="Fresh groceries, delivered fast" /></Field>
+            <Field label="Sub-headline (optional)"><input className="input" value={edit.f.subtitle} onChange={(e) => set("subtitle", e.target.value)} /></Field>
+            <Field label="Button text"><input className="input" value={edit.f.ctaLabel} onChange={(e) => set("ctaLabel", e.target.value)} placeholder="Shop now" /></Field>
+            <Field label="Button link" hint="e.g. /products or /products?cat=fruit"><input className="input" value={edit.f.ctaHref} onChange={(e) => set("ctaHref", e.target.value)} /></Field>
+            <Field label="Sort order"><input className="input" type="number" value={edit.f.sortOrder} onChange={(e) => set("sortOrder", e.target.value)} /></Field>
+          </div>
+          <Toggle checked={edit.f.active} onChange={(v) => set("active", v)} label="Show on home page" />
         </div>}
       </Modal>
       {node}

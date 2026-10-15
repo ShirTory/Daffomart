@@ -1,39 +1,43 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+import AddToCart from "@/components/store/AddToCart";
+import Gallery from "@/components/store/Gallery";
 import ProductCard from "@/components/store/ProductCard";
-import { getActiveProducts, getSettings, getCategories } from "@/server/queries";
-export const metadata: Metadata = { title: "All Products" };
-const PER = 24;
+import { getActiveProducts, getCategories } from "@/server/queries";
+import { discountPct, taka } from "@/lib/format";
+export const revalidate = 60; // served from cache, refreshed when the admin saves (and at most every 60 s)
 
-type SP = { q?: string; cat?: string; sort?: string; max?: string; sale?: string; featured?: string; page?: string };
-export default async function ProductsPage({ searchParams }: { searchParams: Promise<SP> }) {
-  const sp = await searchParams; const { q = "", cat = "", sort = "", max = "", sale = "", featured = "" } = sp; const page = Math.max(1, Number(sp.page) || 1);
-  const [all, settings, categories] = await Promise.all([getActiveProducts(), getSettings(), getCategories()]);
-  let list = all.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()) && (!cat || p.categoryId === cat) && (!max || p.price <= Number(max)) && (!sale || (p.oldPrice && p.oldPrice > p.price)) && (!featured || p.featured));
-  if (sort === "price_asc") list.sort((a, b) => a.price - b.price);
-  else if (sort === "price_desc") list.sort((a, b) => b.price - a.price);
-  else if (sort === "popular") list.sort((a, b) => b.sold - a.sold);
-  else list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const total = list.length, pages = Math.max(1, Math.ceil(total / PER)); list = list.slice((page - 1) * PER, page * PER);
-  const link = (o: Record<string, string>) => { const p = new URLSearchParams(Object.entries({ q, cat, sort, max, sale, featured, ...o }).filter(([, v]) => v) as [string, string][]); const s = p.toString(); return `/products${s ? `?${s}` : ""}`; };
-  const heading = sale ? "Offers & Discounts" : featured ? "Featured Products" : cat ? categories.find((c) => c.id === cat)?.name ?? "Products" : "All Products";
-  const chip = (active: boolean) => `rounded-lg px-3 py-1.5 transition ${active ? "bg-primary text-white" : "bg-gray-50 text-gray-700 hover:bg-primary-soft"}`;
+const find = async (slug: string) => (await getActiveProducts()).find((p) => p.slug === slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const p = await find((await params).slug);
+  return { title: p?.name ?? "Product", description: p?.description, openGraph: p?.image ? { images: [p.image] } : undefined };
+}
 
+export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
+  const [all, categories] = [await getActiveProducts(), await getCategories()];
+  const { slug } = await params;
+  const p = all.find((x) => x.slug === slug); if (!p) notFound();
+  const related = all.filter((x) => x.categoryId === p.categoryId && x.id !== p.id).slice(0, 5);
+  const cat = categories.find((c) => c.id === p.categoryId); const off = discountPct(p.price, p.oldPrice);
+  const images = p.images?.length ? p.images : p.image ? [p.image] : [];
   return (
-    <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
-      <aside className="h-fit space-y-6 rounded-2xl border bg-white p-5 text-sm shadow-card lg:sticky lg:top-40">
-        <div><h3 className="mb-3 font-bold">Categories</h3><div className="flex flex-wrap gap-2 lg:flex-col lg:gap-1">
-          <Link href={link({ cat: "", page: "" })} className={chip(!cat)}>All</Link>
-          {categories.map((c) => <Link key={c.id} href={link({ cat: c.id, page: "" })} className={chip(cat === c.id)}>{c.emoji} {c.name}</Link>)}</div></div>
-        <div><h3 className="mb-3 font-bold">Max price</h3><div className="flex flex-wrap gap-2">{["", "100", "300", "500", "1000"].map((m) => <Link key={m} href={link({ max: m, page: "" })} className={chip(max === m)}>{m ? `৳${m}` : "Any"}</Link>)}</div></div>
-        <div><h3 className="mb-3 font-bold">Sort by</h3><div className="flex flex-wrap gap-2 lg:flex-col lg:gap-1">{[["", "Newest"], ["price_asc", "Price: low to high"], ["price_desc", "Price: high to low"], ["popular", "Most popular"]].map(([v, l]) => <Link key={v} href={link({ sort: v, page: "" })} className={chip(sort === v)}>{l}</Link>)}</div></div>
-      </aside>
-      <section>
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2"><h1 className="text-2xl font-bold tracking-tight">{heading}{q && <span className="ml-2 text-base font-normal text-gray-500">for “{q}”</span>}</h1><p className="text-sm text-gray-500">{total} product{total === 1 ? "" : "s"}</p></div>
-        {list.length === 0 ? <div className="rounded-2xl border bg-white p-12 text-center"><p className="text-4xl">🔍</p><p className="mt-2 font-semibold">No products found</p><p className="text-sm text-gray-500">Try a different search or filter.</p><Link href="/products" className="btn-primary mt-4">Clear filters</Link></div> :
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">{list.map((p) => <ProductCard key={p.id} p={p} whatsapp={settings?.whatsapp} />)}</div>}
-        {pages > 1 && <nav className="mt-8 flex flex-wrap justify-center gap-2" aria-label="Pagination">{Array.from({ length: pages }, (_, i) => i + 1).map((n) => <Link key={n} href={link({ page: String(n) })} className={`flex h-10 w-10 items-center justify-center rounded-lg border text-sm font-semibold ${n === page ? "border-primary bg-primary text-white" : "bg-white hover:bg-primary-soft"}`}>{n}</Link>)}</nav>}
-      </section>
-    </div>
+    <>
+      <nav className="mb-4 text-sm text-gray-500"><Link href="/" className="hover:text-primary">Home</Link> / <Link href="/products" className="hover:text-primary">Products</Link>{cat && <> / <Link href={`/products?cat=${cat.id}`} className="hover:text-primary">{cat.name}</Link></>}</nav>
+      <div className="grid gap-8 rounded-2xl border bg-white p-5 shadow-card md:grid-cols-2 md:p-8">
+        <Gallery images={images} emoji={p.emoji} name={p.name} />
+        <div className="space-y-4">
+          {cat && <p className="text-sm font-medium text-primary">{cat.name}</p>}
+          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">{p.name}</h1>
+          <p className="text-sm text-gray-500">{p.rating > 0 && <>⭐ {p.rating.toFixed(1)} · </>}{p.sold > 0 && <>{p.sold}+ sold · </>}{p.unit}</p>
+          <div className="flex items-baseline gap-3"><span className="text-4xl font-extrabold text-primary">{taka(p.price)}</span>{p.oldPrice ? <span className="text-lg text-gray-400 line-through">{taka(p.oldPrice)}</span> : null}{off > 0 && <span className="rounded-full bg-accent px-2.5 py-0.5 text-sm font-bold text-white">Save {off}%</span>}</div>
+          <p className={`text-sm font-medium ${p.stock > 0 ? "text-emerald-600" : "text-red-600"}`}>{p.stock <= 0 ? "Out of stock" : p.stock <= 10 ? `Only ${p.stock} left in stock` : "In stock"}</p>
+          {p.description && <p className="whitespace-pre-line text-sm leading-relaxed text-gray-600">{p.description}</p>}
+          <div className="max-w-sm pt-2"><AddToCart product={p} withQty /></div>
+          <ul className="grid gap-2 border-t pt-4 text-sm text-gray-600 sm:grid-cols-2"><li>🚚 Fast home delivery</li><li>💵 Cash on delivery</li><li>🌿 Quality checked</li><li>↩️ Easy support</li></ul>
+        </div>
+      </div>
+      {related.length > 0 && <section className="mt-10"><h2 className="mb-4 text-xl font-bold">You may also like</h2><div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 xl:grid-cols-5">{related.map((r) => <ProductCard key={r.id} p={r} />)}</div></section>}
+    </>
   );
 }
