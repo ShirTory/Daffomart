@@ -8,10 +8,10 @@ import type { Banner, Category, Offer, Product } from "@/lib/types";
  *  Order creation and the admin panel read the live data through `db` / `services` instead. */
 const cached = <A extends unknown[], R>(fn: (...a: A) => Promise<R>, key: string) => unstable_cache(fn, [`store-${key}`], { tags: [STORE_TAG], revalidate: 60 });
 
-export const getCategories = cached(async () => (await db.list<Category>("categories")).filter((c) => c.active).sort((a, b) => a.sortOrder - b.sortOrder), "categories");
+export const getCategories = cached(async () => (await db.list<Category>("categories")).filter((c) => c.active).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)), "categories");
 export const getBanners = cached(async () => (await db.list<Banner>("banners")).filter((b) => b.active).sort((a, b) => a.sortOrder - b.sortOrder), "banners");
 export const getOffers = cached(async () => (await db.list<Offer>("offers")).filter((o) => offerIsLive(o)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)), "offers");
-export const getActiveProducts = cached(async () => (await db.list<Product>("products")).filter((p) => p.active), "products");
+export const getActiveProducts = cached(async () => (await db.list<Product>("products")).filter((p) => p.active).map(({ cost, ...p }) => p as Product), "products"); // `cost` never reaches the storefront
 export const getSettings = cached(liveSettings, "settings");
 export const getZones = cached(liveZones, "zones");
 export const isMedicineCat = (c?: Category) => c?.kind === "medicine";

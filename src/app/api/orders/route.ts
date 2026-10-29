@@ -2,6 +2,8 @@ import { db } from "@/server/db";
 import { requireAdmin } from "@/server/auth";
 import { clientIp, handle, ok, rateLimit, readJson } from "@/server/http";
 import { createOrder } from "@/server/services";
+import { notifyOrderPlaced } from "@/server/integrations/whatsapp";
+import { runAfterResponse } from "@/server/after";
 import { orderCreateSchema } from "@/lib/validators";
 import type { Order } from "@/lib/types";
 export const dynamic = "force-dynamic";
@@ -19,8 +21,12 @@ export const GET = handle(async (req) => {
 
 /** Public checkout. Prices, stock, delivery and coupon are all re-computed on the server. */
 export const POST = handle(async (req) => {
-  rateLimit(`order:${clientIp(req)}`, 10, 10 * 60_000);
+  rateLimit(`order:${clientIp(req)}`, 40, 10 * 60_000); // loose: a campus / hostel Wi-Fi shares one IP
   const input = orderCreateSchema.parse(await readJson(req));
+  rateLimit(`order-phone:${input.phone}`, 5, 10 * 60_000); // strict per customer
   const o = await createOrder(input);
+  // WhatsApp alerts run AFTER the customer gets their confirmation, so a slow or failing provider can never delay or break checkout.
+  // A retried checkout returns the same order and the message log (one per order+recipient) prevents a second message.
+  runAfterResponse(() => notifyOrderPlaced(o));
   return ok({ orderNo: o.orderNo, total: o.total, id: o.id }, 201);
 });

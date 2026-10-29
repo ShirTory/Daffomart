@@ -1,14 +1,16 @@
-/** Shown instantly while a page loads — DaffoMart logo + light pulse animation. */
+import Image from "next/image";
+
+/** Shown instantly while a page loads — logo + brand with a light pulse. */
 export default function Loading() {
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4" aria-busy="true" aria-label="Loading DaffoMart">
-      <div className="relative">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="DaffoMart" className="h-16 w-16 animate-pulse object-contain sm:h-20 sm:w-20" />
-        <div className="absolute -inset-2 animate-ping rounded-full bg-primary/20" style={{ animationDuration: "1.5s" }} />
+    <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4" aria-busy="true" aria-label="Loading DaffoMart">
+      <div className="relative h-16 w-16 animate-pulse sm:h-20 sm:w-20">
+        <Image src="/logo.png" alt="DaffoMart" fill className="object-contain" priority />
       </div>
-      <p className="text-lg font-bold tracking-tight text-primary">DaffoMart</p>
-      <p className="text-sm text-gray-400">Loading fresh groceries…</p>
+      <p className="text-lg font-bold tracking-tight text-primary sm:text-xl">DaffoMart</p>
+      <div className="mt-2 h-1.5 w-24 overflow-hidden rounded-full bg-primary-soft">
+        <div className="h-full w-1/2 animate-[shimmer_1.2s_ease-in-out_infinite] rounded-full bg-primary" />
+      </div>
     </div>
   );
 }

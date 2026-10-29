@@ -3,8 +3,31 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Field, Icon, Spinner } from "@/components/admin/ui";
 
-type F = { name: string; phone: string; password: string; password2: string; nidNumber: string; permanentAddress: string; presentAddress: string; vehicle: string; area: string; referrerName: string; referrerPhone: string; referrerRelation: string };
-const blank: F = { name: "", phone: "", password: "", password2: "", nidNumber: "", permanentAddress: "", presentAddress: "", vehicle: "Motorbike", area: "", referrerName: "", referrerPhone: "", referrerRelation: "" };
+type F = {
+  name: string; phone: string; password: string; password2: string;
+  nidNumber: string; permanentAddress: string; presentAddress: string;
+  vehicle: string; area: string;
+  referrerName: string; referrerPhone: string; referrerRelation: string;
+  // CV
+  dateOfBirth: string; gender: string; bloodGroup: string;
+  fatherName: string; motherName: string;
+  education: string; experienceYears: string; previousJobs: string; skills: string; languages: string;
+  emergencyContact: string; emergencyPhone: string;
+  drivingLicense: string; licenseNumber: string;
+  expectedSalary: string; availableFrom: string; preferredShift: string;
+};
+const blank: F = {
+  name: "", phone: "", password: "", password2: "",
+  nidNumber: "", permanentAddress: "", presentAddress: "",
+  vehicle: "Motorbike", area: "",
+  referrerName: "", referrerPhone: "", referrerRelation: "",
+  dateOfBirth: "", gender: "", bloodGroup: "",
+  fatherName: "", motherName: "",
+  education: "", experienceYears: "", previousJobs: "", skills: "", languages: "",
+  emergencyContact: "", emergencyPhone: "",
+  drivingLicense: "", licenseNumber: "",
+  expectedSalary: "", availableFrom: "", preferredShift: "",
+};
 
 /** Shrinks a phone photo in the browser (max 1600 px JPEG) so the upload is small and fast. */
 async function shrink(file: File, max = 1600): Promise<File> {
@@ -32,9 +55,9 @@ function Photo({ label, file, onPick, error }: { label: string; file: File | nul
 }
 
 export default function RiderRegister() {
-  const [f, setF] = useState<F>(blank); const [front, setFront] = useState<File | null>(null); const [back, setBack] = useState<File | null>(null);
+  const [f, setF] = useState<F>(blank); const [front, setFront] = useState<File | null>(null); const [back, setBack] = useState<File | null>(null); const [profile, setProfile] = useState<File | null>(null);
   const [agree, setAgree] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [errs, setErrs] = useState<Record<string, string>>({}); const [done, setDone] = useState(false);
-  const set = (k: keyof F) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const set = (k: keyof F) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setF((x) => ({ ...x, [k]: e.target.value }));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setErr(""); setErrs({});
@@ -45,6 +68,7 @@ export default function RiderRegister() {
       const fd = new FormData();
       for (const [k, v] of Object.entries(f)) if (k !== "password2") fd.append(k, v);
       fd.append("nidFront", await shrink(front)); fd.append("nidBack", await shrink(back));
+      if (profile) fd.append("image", await shrink(profile));
       const res = await fetch("/api/rider/register", { method: "POST", body: fd });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) { if (json?.details && typeof json.details === "object") setErrs(json.details); throw new Error(json?.error ?? `Could not send your application (${res.status})`); }
@@ -91,13 +115,70 @@ export default function RiderRegister() {
         <Field label="Relation with you" error={errs.referrerRelation} className="sm:col-span-2"><input className="input" value={f.referrerRelation} onChange={set("referrerRelation")} placeholder="e.g. Neighbour, Uncle, Employer" /></Field>
       </div>
 
-      <h2 className="mt-8 border-b pb-2 text-sm font-bold uppercase tracking-wide text-primary">National ID (NID)</h2>
+      <h2 className="mt-8 border-b pb-2 text-sm font-bold uppercase tracking-wide text-primary">Profile photo</h2>
+      <div className="mt-4 max-w-xs">
+        <Photo label="Your photo (optional — shown to customers)" file={profile} onPick={setProfile} />
+      </div>
+
+<h2 className="mt-8 border-b pb-2 text-sm font-bold uppercase tracking-wide text-primary">National ID (NID)</h2>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <Field label="NID number" error={errs.nidNumber} hint="10, 13 or 17 digits" className="sm:col-span-2"><input className="input" required inputMode="numeric" value={f.nidNumber} onChange={set("nidNumber")} /></Field>
         <Photo label="NID front photo" file={front} onPick={setFront} />
         <Photo label="NID back photo" file={back} onPick={setBack} />
       </div>
       <p className="mt-2 text-xs text-gray-500">🔒 Your NID photos are private. Only the store admin can see them.</p>
+
+      <h2 className="mt-8 border-b pb-2 text-sm font-bold uppercase tracking-wide text-primary">Personal information (for hiring)</h2>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <Field label="Date of birth"><input className="input" type="date" value={f.dateOfBirth} onChange={set("dateOfBirth")} /></Field>
+        <Field label="Gender">
+          <select className="input" value={f.gender} onChange={set("gender")}>
+            <option value="">Select…</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+        </Field>
+        <Field label="Blood group">
+          <select className="input" value={f.bloodGroup} onChange={set("bloodGroup")}>
+            <option value="">Select…</option>
+            {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((g) => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </Field>
+        <Field label="Father's name"><input className="input" value={f.fatherName} onChange={set("fatherName")} /></Field>
+        <Field label="Mother's name"><input className="input" value={f.motherName} onChange={set("motherName")} /></Field>
+        <Field label="Emergency contact name"><input className="input" value={f.emergencyContact} onChange={set("emergencyContact")} /></Field>
+        <Field label="Emergency phone"><input className="input" inputMode="numeric" value={f.emergencyPhone} onChange={set("emergencyPhone")} placeholder="01XXXXXXXXX" /></Field>
+      </div>
+
+      <h2 className="mt-8 border-b pb-2 text-sm font-bold uppercase tracking-wide text-primary">Professional information</h2>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <Field label="Education"><input className="input" value={f.education} onChange={set("education")} placeholder="e.g. HSC, Bachelor" /></Field>
+        <Field label="Experience (years)"><input className="input" type="number" min={0} value={f.experienceYears} onChange={set("experienceYears")} placeholder="0" /></Field>
+        <Field label="Skills" className="sm:col-span-2"><input className="input" value={f.skills} onChange={set("skills")} placeholder="e.g. Driving, Navigation, Customer service" /></Field>
+        <Field label="Languages"><input className="input" value={f.languages} onChange={set("languages")} placeholder="Bangla, English" /></Field>
+        <Field label="Driving license?">
+          <select className="input" value={f.drivingLicense} onChange={set("drivingLicense")}>
+            <option value="">Select…</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </Field>
+        <Field label="License number"><input className="input" value={f.licenseNumber} onChange={set("licenseNumber")} /></Field>
+        <Field label="Expected salary (৳)"><input className="input" type="number" min={0} value={f.expectedSalary} onChange={set("expectedSalary")} /></Field>
+        <Field label="Available from"><input className="input" type="date" value={f.availableFrom} onChange={set("availableFrom")} /></Field>
+        <Field label="Preferred shift">
+          <select className="input" value={f.preferredShift} onChange={set("preferredShift")}>
+            <option value="">Any</option>
+            <option value="Morning">Morning</option>
+            <option value="Afternoon">Afternoon</option>
+            <option value="Evening">Evening</option>
+            <option value="Night">Night</option>
+            <option value="Full day">Full day</option>
+          </select>
+        </Field>
+        <Field label="Previous jobs / work history" className="sm:col-span-2"><textarea className="input" rows={2} value={f.previousJobs} onChange={set("previousJobs")} placeholder="Company, role, duration…" /></Field>
+      </div>
 
       <label className="mt-6 flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" className="mt-0.5 h-4 w-4" checked={agree} onChange={(e) => setAgree(e.target.checked)} />I confirm that all the information and photos above are true and belong to me.</label>
       {err && <div className="mt-4 flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700"><Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />{err}</div>}

@@ -1,3 +1,8 @@
+/** "+880 1712-345678" / "8801712345678" / "01712 345678" -> "01712345678" (leaves anything else untouched) */
+export const normPhone = (v: string) => {
+  const s = (v ?? "").replace(/[\s-]/g, "").replace(/^\+?88(?=01)/, "");
+  return s;
+};
 export const taka = (n: number) => `৳${Math.round(n).toLocaleString("en-US")}`;
 export const discountPct = (price: number, oldPrice?: number) => (oldPrice && oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : 0);
 export const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "item";

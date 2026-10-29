@@ -6,29 +6,54 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Icon, ToastProvider } from "./ui";
 
-const NAV = [
-  { href: "/admin", label: "Dashboard", icon: "dashboard" },
-  { href: "/admin/orders", label: "Orders", icon: "orders" },
+const NAV: { href: string; label: string; icon: string; section?: string }[] = [
+  { href: "/admin", label: "Dashboard", icon: "dashboard", section: "Overview" },
+  { href: "/admin/operations", label: "Operations", icon: "ops" },
+  { href: "/admin/orders", label: "Orders", icon: "orders", section: "Sales" },
+  { href: "/admin/customers", label: "Customers (CRM)", icon: "users" },
+  { href: "/admin/finance", label: "Finance", icon: "trend" },
+  { href: "/admin/finance/payroll", label: "Staff Payroll", icon: "users" },
+  { href: "/admin/finance/rider-earnings", label: "Rider Earnings", icon: "rider" },
+  { href: "/admin/finance/purchases", label: "Purchases & Suppliers", icon: "inventory" },
+  { href: "/admin/finance/balances", label: "Balances & Dues", icon: "trend" },
+  { href: "/admin/issues", label: "Issues", icon: "alert" },
   { href: "/admin/products", label: "Products", icon: "products" },
   { href: "/admin/categories", label: "Categories", icon: "categories" },
   { href: "/admin/inventory", label: "Inventory", icon: "inventory" },
-  { href: "/admin/delivery", label: "Delivery Areas", icon: "delivery" },
+  { href: "/admin/offers", label: "Offers & Coupons", icon: "offers" },
+  { href: "/admin/delivery", label: "Delivery Areas", icon: "delivery", section: "Delivery" },
   { href: "/admin/riders", label: "Riders", icon: "rider" },
   { href: "/admin/live", label: "Live Map", icon: "delivery" },
-  { href: "/admin/payments", label: "Payments", icon: "cash" },
-  { href: "/admin/covers", label: "Cover Images", icon: "covers" },
-  { href: "/admin/offers", label: "Offers & Coupons", icon: "offers" },
+  { href: "/admin/couriers", label: "Courier Services", icon: "delivery" },
+  { href: "/admin/employees", label: "Staff", icon: "users", section: "Team" },
+  { href: "/admin/attendance", label: "Attendance", icon: "calendar" },
+  { href: "/admin/theme", label: "Website Theme", icon: "palette", section: "Website" },
+  { href: "/admin/appearance", label: "Appearance", icon: "palette" },
+  { href: "/admin/texts", label: "Website Text", icon: "text" },
   { href: "/admin/content", label: "Website Content", icon: "content" },
+  { href: "/admin/covers", label: "Cover Images", icon: "covers" },
+  { href: "/admin/payments", label: "Payments", icon: "trend" },
+  { href: "/admin/invoice-settings", label: "Invoice", icon: "invoice" },
+  { href: "/admin/integrations", label: "WhatsApp & Calling", icon: "phone", section: "Integrations" },
+  { href: "/admin/data-transfer", label: "Excel Import/Export", icon: "upload" },
+  { href: "/admin/it-support", label: "IT Support", icon: "users", section: "Security" },
+  { href: "/admin/audit", label: "Audit logs", icon: "ops" },
   { href: "/admin/settings", label: "Settings & Contact", icon: "settings" },
 ];
 
-export default function AdminShell({ email, children }: { email: string; children: React.ReactNode }) {
+/** An Accountant only sees (and may only open) the Finance pages; the API enforces the same boundary. */
+const isFinancePath = (p: string) => p === "/admin/finance" || p.startsWith("/admin/finance/");
+
+export default function AdminShell({ email, role, children }: { email: string; role?: string; children: React.ReactNode }) {
+  const accountant = role === "accountant";
   const path = usePathname(); const router = useRouter(); const [open, setOpen] = useState(false); const [pending, setPending] = useState(0);
   useEffect(() => setOpen(false), [path]);
-  useEffect(() => { api<{ count: number }>("/api/admin/riders-pending").then((r) => setPending(r.count)).catch(() => {}); }, [path]); // new rider applications waiting for approval
-  const active = (h: string) => (h === "/admin" ? path === h : path.startsWith(h));
+  useEffect(() => { if (accountant && !isFinancePath(path)) router.replace("/admin/finance"); }, [accountant, path, router]);
+  useEffect(() => { if (accountant) return; api<{ count: number }>("/api/admin/riders-pending").then((r) => setPending(r.count)).catch(() => {}); }, [path]); // new rider applications waiting for approval
+  const nav = accountant ? NAV.filter((n) => isFinancePath(n.href)) : NAV;
+  const active = (h: string) => (h === "/admin" ? path === h : h === "/admin/finance" ? path === h : path === h || path.startsWith(h + "/"));
   const logout = async () => { await api("/api/auth/logout", { method: "POST" }).catch(() => {}); router.replace("/admin/login"); router.refresh(); };
-  const current = NAV.find((n) => active(n.href))?.label ?? "Admin";
+  const current = nav.find((n) => active(n.href))?.label ?? "Admin";
 
   const Sidebar = (
     <div className="flex h-full flex-col bg-primary-deeper text-white">
@@ -37,11 +62,13 @@ export default function AdminShell({ email, children }: { email: string; childre
         <p className="mt-3 px-1 text-[11px] font-semibold uppercase tracking-widest text-white/40">Admin Panel</p>
       </div>
       <nav className="scroll-thin flex-1 space-y-1 overflow-y-auto px-3">
-        {NAV.map((n) => (
-          <Link key={n.href} href={n.href} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${active(n.href) ? "bg-accent text-white shadow" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
+        {nav.map((n) => (
+          <div key={n.href}>
+            {n.section && <p className="px-3 pb-1 pt-3 text-[10px] font-bold uppercase tracking-widest text-white/35">{n.section}</p>}
+          <Link href={n.href} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${active(n.href) ? "bg-accent text-white shadow" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
             <Icon name={n.icon} className="h-[18px] w-[18px]" />{n.label}
             {n.href === "/admin/riders" && pending > 0 && <span className="ml-auto rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-white" title="Rider applications waiting for approval">{pending}</span>}
-          </Link>))}
+          </Link></div>))}
       </nav>
       <div className="space-y-1 border-t border-white/10 p-3">
         <Link href="/" target="_blank" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white"><Icon name="external" className="h-[18px] w-[18px]" />View storefront</Link>

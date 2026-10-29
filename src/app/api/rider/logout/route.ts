@@ -5,6 +5,6 @@ import type { Rider } from "@/lib/types";
 /** Signing out also stops sharing the rider's live position. */
 export const POST = handle(async () => {
   const r = await getRider();
-  if (r?.locAt) await db.put<Rider>("riders", { ...r, lat: undefined, lng: undefined, locAt: undefined });
+  if (r?.locAt) await db.update<Rider>("riders", r.id, { lat: undefined, lng: undefined, locAt: undefined });
   await clearRiderSession(); return ok({});
 });

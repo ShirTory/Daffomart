@@ -10,7 +10,7 @@ export const POST = handle(async (req) => {
   const rider = await requireRider();
   rateLimit(`loc:${rider.id}`, 40, 60_000);
   const body = riderLocationSchema.parse(await readJson(req));
-  if ("stop" in body) await db.put<Rider>("riders", { ...rider, lat: undefined, lng: undefined, locAt: undefined });
-  else await db.put<Rider>("riders", { ...rider, lat: +body.lat.toFixed(6), lng: +body.lng.toFixed(6), locAt: new Date().toISOString() });
+  if ("stop" in body) await db.update<Rider>("riders", rider.id, { lat: undefined, lng: undefined, locAt: undefined });
+  else await db.update<Rider>("riders", rider.id, { lat: +body.lat.toFixed(6), lng: +body.lng.toFixed(6), locAt: new Date().toISOString() });
   return ok({ saved: true });
 });
