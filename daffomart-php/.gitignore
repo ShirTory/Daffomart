@@ -1,0 +1,7 @@
+.DS_Store
+Thumbs.db
+.vscode/
+includes/config.local.php
+uploads/*
+!uploads/.gitkeep
+!uploads/index.html

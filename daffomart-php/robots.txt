@@ -1,0 +1,10 @@
+# robots.txt - tells search engines what to skip.
+# After going live, add this line with your real domain:
+# Sitemap: https://YOUR-DOMAIN/sitemap.php
+User-agent: *
+Disallow: /admin/
+Disallow: /includes/
+Disallow: /database/
+Disallow: /api/
+Disallow: /cart.php
+Disallow: /checkout.php
