@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create account | DaffoMart</title>
+  <meta name="description" content="Create a DaffoMart account to see your orders.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#1e3a8a">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="DaffoMart">
+  <meta property="og:title" content="Create account | DaffoMart">
+  <meta property="og:description" content="Create a DaffoMart account to see your orders.">
+  <link rel="icon" href="assets/img/favicon.ico">
+  <script>
+    /* set dark/light theme BEFORE the page is drawn, so there is no white flash */
+    (function () {
+      try {
+        var t = localStorage.getItem('dm_theme');
+        if (!t) { t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (err) { /* private mode: keep light theme */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div id="site-header"></div>
+
+<main class="container main" id="main">
+
+<div class="auth-box card form-card narrow">
+  <h1>Create account</h1>
+  <div id="registerError"></div>
+
+  <form id="registerForm" novalidate>
+    <label>Full name
+      <input type="text" name="name" required autocomplete="name">
+    </label>
+    <label>Email
+      <input type="email" name="email" required autocomplete="email">
+    </label>
+    <label>Mobile number
+      <input type="tel" name="phone" placeholder="01712345678" required autocomplete="tel">
+    </label>
+    <label>Password (min 6 characters)
+      <input type="password" name="password" required autocomplete="new-password">
+    </label>
+    <label>Confirm password
+      <input type="password" name="confirm" required autocomplete="new-password">
+    </label>
+    <button class="btn btn-primary btn-block">Register</button>
+  </form>
+
+  <p class="muted">Already have an account? <a href="login.html">Login</a></p>
+</div>
+</main>
+
+<div id="site-footer"></div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/demo-sdk.js"></script>
+  <script src="assets/js/db.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/pages/register.js"></script>
+</body>
+</html>

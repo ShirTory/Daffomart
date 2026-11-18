@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My wishlist | DaffoMart</title>
+  <meta name="description" content="Products you saved for later at DaffoMart.">
+  <meta name="theme-color" content="#1e3a8a">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="DaffoMart">
+  <meta property="og:title" content="My wishlist | DaffoMart">
+  <meta property="og:description" content="Products you saved for later at DaffoMart.">
+  <link rel="icon" href="assets/img/favicon.ico">
+  <script>
+    /* set dark/light theme BEFORE the page is drawn, so there is no white flash */
+    (function () {
+      try {
+        var t = localStorage.getItem('dm_theme');
+        if (!t) { t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (err) { /* private mode: keep light theme */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div id="site-header"></div>
+
+<main class="container main" id="main">
+
+<h1>My wishlist</h1>
+<p class="muted">Tap the heart ♡ on any product to save it here. Your list is stored in this browser.</p>
+
+<div id="wishlistGrid" class="product-grid"></div>
+
+<div id="wishlistEmpty" class="empty card" hidden>
+  <p class="big">♡</p>
+  <h3>Your wishlist is empty</h3>
+  <a class="btn btn-primary" href="products.html">Browse products</a>
+</div>
+
+<noscript><div class="alert alert-info">Please turn on JavaScript to see your wishlist.</div></noscript>
+</main>
+
+<div id="site-footer"></div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/demo-sdk.js"></script>
+  <script src="assets/js/db.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/pages/wishlist.js"></script>
+</body>
+</html>

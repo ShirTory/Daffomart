@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checkout | DaffoMart</title>
+  <meta name="description" content="Enter your delivery details and place your cash on delivery order.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#1e3a8a">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="DaffoMart">
+  <meta property="og:title" content="Checkout | DaffoMart">
+  <meta property="og:description" content="Enter your delivery details and place your cash on delivery order.">
+  <link rel="icon" href="assets/img/favicon.ico">
+  <script>
+    /* set dark/light theme BEFORE the page is drawn, so there is no white flash */
+    (function () {
+      try {
+        var t = localStorage.getItem('dm_theme');
+        if (!t) { t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (err) { /* private mode: keep light theme */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div id="site-header"></div>
+
+<main class="container main" id="main">
+
+<h1>Checkout</h1>
+<div id="checkoutErrors"></div>
+
+<div class="cart-layout">
+  <form class="card form-card" id="checkoutForm" novalidate hidden>
+    <h3>Delivery details</h3>
+
+    <label>Full name
+      <input type="text" name="name" required autocomplete="name">
+    </label>
+
+    <label>Mobile number
+      <input type="tel" name="phone" placeholder="01712345678" required autocomplete="tel">
+    </label>
+
+    <label>Delivery address
+      <textarea name="address" rows="3" placeholder="House, road, area, city" required autocomplete="street-address"></textarea>
+    </label>
+
+    <fieldset>
+      <legend>Delivery area</legend>
+      <label class="radio"><input type="radio" name="area" value="inside" checked> Inside Dhaka (<span data-money="delivery.inside"></span>)</label>
+      <label class="radio"><input type="radio" name="area" value="outside"> Outside Dhaka (<span data-money="delivery.outside"></span>)</label>
+    </fieldset>
+
+    <label>Order note (optional)
+      <textarea name="note" rows="2" maxlength="500"></textarea>
+    </label>
+
+    <p><strong>Payment method:</strong> Cash on delivery</p>
+
+    <div class="alert alert-info" id="rxNote" hidden>Your order has a prescription (Rx) medicine. Our pharmacist will call you to confirm the prescription before delivery.</div>
+
+    <button class="btn btn-primary btn-block">Place order</button>
+  </form>
+
+  <aside class="card summary" id="checkoutSummary"><p class="loading">Loading...</p></aside>
+</div>
+</main>
+
+<div id="site-footer"></div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/demo-sdk.js"></script>
+  <script src="assets/js/db.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/pages/checkout.js"></script>
+</body>
+</html>

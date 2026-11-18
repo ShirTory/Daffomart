@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /cart.html
+Disallow: /checkout.html
+Disallow: /account.html
+
+# After you publish, replace with your real address:
+# Sitemap: https://YOUR-SITE.netlify.app/sitemap.xml

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Groceries & Medicine Delivered | DaffoMart</title>
+  <meta name="description" content="DaffoMart - order groceries and medicine online in Dhaka. Fresh food, daily needs and trusted medicine with cash on delivery.">
+  <meta name="theme-color" content="#1e3a8a">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="DaffoMart">
+  <meta property="og:title" content="Groceries & Medicine Delivered | DaffoMart">
+  <meta property="og:description" content="DaffoMart - order groceries and medicine online in Dhaka. Fresh food, daily needs and trusted medicine with cash on delivery.">
+  <link rel="icon" href="assets/img/favicon.ico">
+  <script>
+    /* set dark/light theme BEFORE the page is drawn, so there is no white flash */
+    (function () {
+      try {
+        var t = localStorage.getItem('dm_theme');
+        if (!t) { t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (err) { /* private mode: keep light theme */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div id="site-header"></div>
+
+<main class="container main" id="main">
+
+<!-- HERO -->
+<section class="hero">
+  <div>
+    <h1>Groceries &amp; medicine,<br>delivered to your door.</h1>
+    <p>Fresh food, daily needs and trusted medicine - order online, pay on delivery.</p>
+    <a class="btn btn-accent" href="products.html">Shop now</a>
+    <a class="btn btn-light" href="products.html?kind=medicine">Order medicine</a>
+  </div>
+</section>
+
+<!-- FEATURE BOXES -->
+<section class="features">
+  <div class="feature"><span>🚚</span><strong>Fast delivery</strong><small>Same-day in Dhaka</small></div>
+  <div class="feature"><span>🌿</span><strong>Always fresh</strong><small>Quality checked</small></div>
+  <div class="feature"><span>💵</span><strong>Cash on delivery</strong><small>Pay when you receive</small></div>
+  <div class="feature"><span>🏷️</span><strong>Best prices</strong><small>Daily offers</small></div>
+</section>
+
+<!-- CATEGORIES (filled by assets/js/pages/home.js) -->
+<section>
+  <h2 class="section-title">Shop by category</h2>
+  <div class="category-grid" id="categories"><p class="loading">Loading...</p></div>
+</section>
+
+<!-- FEATURED PRODUCTS -->
+<section>
+  <div class="section-head">
+    <h2 class="section-title">Best sellers</h2>
+    <a href="products.html">View all &rarr;</a>
+  </div>
+  <div class="product-grid" id="featured"></div>
+</section>
+
+<!-- MEDICINE -->
+<section class="medicine-band">
+  <div class="section-head">
+    <h2 class="section-title">Medicine &amp; Healthcare</h2>
+    <a href="products.html?kind=medicine">View all &rarr;</a>
+  </div>
+  <p class="muted">Trusted medicines and health products, delivered fast. Prescription (Rx) medicines are delivered only after our pharmacist confirms your prescription by phone.</p>
+  <div class="product-grid" id="medicine"></div>
+</section>
+</main>
+
+<div id="site-footer"></div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/demo-sdk.js"></script>
+  <script src="assets/js/db.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/pages/home.js"></script>
+</body>
+</html>
