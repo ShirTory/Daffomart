@@ -1,0 +1,6 @@
+api/config.php
+api/uploads/*
+!api/uploads/.gitkeep
+!api/uploads/.htaccess
+node_modules/
+.DS_Store

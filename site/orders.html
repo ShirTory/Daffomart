@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My orders</title>
+  <meta name="description" content="See your recent orders.">
+  <link rel="icon" href="/assets/img/favicon.ico">
+  <script>
+    /* set dark/light theme BEFORE the page is drawn, so there is no white flash */
+    (function () { try { var t = localStorage.getItem('dm_theme'); if (!t) { t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } document.documentElement.setAttribute('data-theme', t); } catch (e) {} })();
+  </script>
+  <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main class="container main" id="main">
+<h1>My orders</h1><form id="phoneForm" class="card form-card narrow" novalidate>
+<label>Mobile number you ordered with<input type="tel" name="phone" placeholder="01XXXXXXXXX" required></label><button class="btn btn-primary">Show my orders</button></form><div id="ordersBox"></div>
+</main>
+<div id="site-footer"></div>
+<script src="/assets/js/config.js"></script>
+<script src="/assets/js/dm.js"></script>
+<script src="/assets/js/pages/orders.js"></script>
+</body>
+</html>

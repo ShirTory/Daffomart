@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Medicine & Healthcare</title>
+  <meta name="description" content="Trusted medicines and health products.">
+  <link rel="icon" href="/assets/img/favicon.ico">
+  <script>
+    /* set dark/light theme BEFORE the page is drawn, so there is no white flash */
+    (function () { try { var t = localStorage.getItem('dm_theme'); if (!t) { t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } document.documentElement.setAttribute('data-theme', t); } catch (e) {} })();
+  </script>
+  <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main class="container main" id="main">
+<div class="breadcrumb"><a href="/">Home</a> / <span id="crumb">Medicine</span></div>
+<div class="alert alert-info" id="medNotice"></div>
+<div class="shop-layout">
+  <aside class="sidebar card"><h3>Categories</h3><ul id="catList"></ul>
+    <h3>Price (৳)</h3><form id="priceForm" class="price-form"><input type="number" name="min" min="0" placeholder="Min"><input type="number" name="max" min="0" placeholder="Max"><button class="btn btn-sm btn-primary">Go</button></form>
+    <label class="check"><input type="checkbox" id="saleOnly"> Offers only</label></aside>
+  <section>
+    <div class="sortbar"><h1 id="shopTitle">Medicine &amp; Healthcare</h1><label>Sort <select id="sortSel"><option value="newest">Newest</option><option value="popular">Most popular</option><option value="price_asc">Price: low to high</option><option value="price_desc">Price: high to low</option></select></label></div>
+    <div id="results" class="product-grid"><p class="loading">Loading...</p></div><div id="pager" class="pagination"></div>
+  </section>
+</div>
+</main>
+<div id="site-footer"></div>
+<script src="/assets/js/config.js"></script>
+<script src="/assets/js/dm.js"></script>
+<script src="/assets/js/pages/shop.js"></script>
+</body>
+</html>
